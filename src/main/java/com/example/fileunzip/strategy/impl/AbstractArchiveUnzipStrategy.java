@@ -1,5 +1,7 @@
 package com.example.fileunzip.strategy.impl;
 
+import com.example.fileunzip.config.UnzipConfig;
+import com.example.fileunzip.config.UnzipConfigManager;
 import com.example.fileunzip.exception.UnzipException;
 import com.example.fileunzip.model.FileInfo;
 import com.example.fileunzip.strategy.UnzipStrategy;
@@ -20,8 +22,7 @@ import java.util.Map;
  */
 public abstract class AbstractArchiveUnzipStrategy implements UnzipStrategy {
     
-    protected static final int DEFAULT_BUFFER_SIZE = 8192;
-    protected static final long MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    protected final UnzipConfig config;
     
     static {
         try {
@@ -30,14 +31,18 @@ public abstract class AbstractArchiveUnzipStrategy implements UnzipStrategy {
             throw new RuntimeException("初始化7-Zip-JBinding失败", e);
         }
     }
+    
+    protected AbstractArchiveUnzipStrategy() {
+        this.config = UnzipConfigManager.getInstance().getConfig();
+    }
 
     @Override
     public Map<FileInfo, byte[]> unzip(byte[] data) throws IOException {
         Map<FileInfo, byte[]> result = new HashMap<>();
         
         // 检查输入数据大小
-        if (data.length > MAX_FILE_SIZE) {
-            throw new UnzipException("文件大小超过限制: " + data.length + " > " + MAX_FILE_SIZE);
+        if (data.length > config.getMaxFileSize()) {
+            throw new UnzipException("文件大小超过限制: " + data.length + " > " + config.getMaxFileSize());
         }
         
         // 检测压缩格式
@@ -50,7 +55,7 @@ public abstract class AbstractArchiveUnzipStrategy implements UnzipStrategy {
         
         // 创建临时文件
         String timestamp = String.valueOf(System.currentTimeMillis());
-        File tempFile = File.createTempFile("temp_archive_" + timestamp + "_", getTempFileExtension());
+        File tempFile = File.createTempFile("temp_archive_" + timestamp + "_", getTempFileExtension(), new File(config.getTempDirectory()));
         try {
             // 写入数据到临时文件
             try (FileOutputStream fos = new FileOutputStream(tempFile)) {
@@ -119,14 +124,16 @@ public abstract class AbstractArchiveUnzipStrategy implements UnzipStrategy {
                 
                 // 检查文件大小
                 Long size = (Long) archive.getProperty(index, PropID.SIZE);
-                if (size != null && size > MAX_FILE_SIZE) {
-                    throw new UnzipException("文件大小超过限制: " + size + " > " + MAX_FILE_SIZE);
+                if (size != null && size > config.getMaxFileSize()) {
+                    throw new UnzipException("文件大小超过限制: " + size + " > " + config.getMaxFileSize());
                 }
                 
                 // 检查文件路径
-                String path = (String) archive.getProperty(index, PropID.PATH);
-                if (path != null && !isValidPath(path)) {
-                    throw new UnzipException("非法的文件路径: " + path);
+                if (config.isEnablePathSecurityCheck()) {
+                    String path = (String) archive.getProperty(index, PropID.PATH);
+                    if (path != null && !isValidPath(path)) {
+                        throw new UnzipException("非法的文件路径: " + path);
+                    }
                 }
                 
                 currentIndex = index;

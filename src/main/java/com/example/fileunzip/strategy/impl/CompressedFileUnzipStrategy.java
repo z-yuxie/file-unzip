@@ -1,5 +1,7 @@
 package com.example.fileunzip.strategy.impl;
 
+import com.example.fileunzip.config.UnzipConfig;
+import com.example.fileunzip.config.UnzipConfigManager;
 import com.example.fileunzip.exception.UnzipException;
 import com.example.fileunzip.model.FileInfo;
 import com.example.fileunzip.util.CompressionFormatDetector;
@@ -57,7 +59,7 @@ public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
 
     @Override
     protected String getTempFileExtension() {
-        return "." + getDefaultExtension();
+        return getDefaultExtension();
     }
 
     @Override
@@ -70,8 +72,8 @@ public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
         Map<FileInfo, byte[]> result = new HashMap<>();
         
         // 检查输入数据大小
-        if (data.length > MAX_FILE_SIZE) {
-            throw new UnzipException("文件大小超过限制: " + data.length + " > " + MAX_FILE_SIZE);
+        if (data.length > config.getMaxFileSize()) {
+            throw new UnzipException("文件大小超过限制: " + data.length + " > " + config.getMaxFileSize());
         }
         
         // 检测压缩格式
@@ -87,15 +89,15 @@ public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
              ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
             
             // 解压数据
-            byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];
+            byte[] buffer = new byte[config.getBufferSize()];
             int bytesRead;
             long totalBytesRead = 0;
             
             while ((bytesRead = decompressor.read(buffer)) != -1) {
                 // 检查解压后的文件大小
                 totalBytesRead += bytesRead;
-                if (totalBytesRead > MAX_FILE_SIZE) {
-                    throw new UnzipException("解压后的文件大小超过限制: " + totalBytesRead + " > " + MAX_FILE_SIZE);
+                if (totalBytesRead > config.getMaxFileSize()) {
+                    throw new UnzipException("解压后的文件大小超过限制: " + totalBytesRead + " > " + config.getMaxFileSize());
                 }
                 
                 bos.write(buffer, 0, bytesRead);
@@ -129,15 +131,19 @@ public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
     private String getDefaultExtension() {
         switch (format) {
             case GZIP:
-                return "gz";
+                return ".gz";
             case BZIP2:
-                return "bz2";
+                return ".bz2";
             case XZ:
-                return "xz";
+                return ".xz";
             case LZMA:
-                return "lzma";
+                return ".lzma";
+            case SNAPPY:
+                return ".snappy";
+            case LZ4:
+                return ".lz4";
             default:
-                return "txt";
+                return ".compressed";
         }
     }
 } 

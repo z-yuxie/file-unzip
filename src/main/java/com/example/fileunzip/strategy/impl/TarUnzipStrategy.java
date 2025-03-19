@@ -1,9 +1,10 @@
 package com.example.fileunzip.strategy.impl;
 
+import com.example.fileunzip.exception.UnzipException;
 import com.example.fileunzip.model.FileInfo;
-import com.example.fileunzip.strategy.UnzipStrategy;
 import com.example.fileunzip.util.CompressionFormatDetector;
-import net.sf.sevenzipjbinding.IInArchive;
+import net.sf.sevenzipjbinding.*;
+import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 
@@ -27,7 +28,7 @@ public class TarUnzipStrategy extends AbstractArchiveUnzipStrategy {
 
     @Override
     protected boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format) {
-        return isTarFormat(format);
+        return format == CompressionFormatDetector.CompressionFormat.TAR;
     }
 
     @Override
@@ -37,7 +38,11 @@ public class TarUnzipStrategy extends AbstractArchiveUnzipStrategy {
 
     @Override
     protected IInArchive openArchive(RandomAccessFile randomAccessFile) throws IOException {
-        throw new UnsupportedOperationException("TAR格式不支持通过7-Zip-JBinding处理");
+        try {
+            return SevenZip.openInArchive(ArchiveFormat.TAR, new RandomAccessFileInStream(randomAccessFile));
+        } catch (SevenZipException e) {
+            throw new UnzipException("打开TAR文件失败", e);
+        }
     }
 
     @Override
@@ -82,10 +87,7 @@ public class TarUnzipStrategy extends AbstractArchiveUnzipStrategy {
     @Override
     public CompressionFormatDetector.CompressionFormat[] getSupportedFormats() {
         return new CompressionFormatDetector.CompressionFormat[]{
-            CompressionFormatDetector.CompressionFormat.TAR,
-            CompressionFormatDetector.CompressionFormat.TAR_GZ,
-            CompressionFormatDetector.CompressionFormat.TAR_BZ2,
-            CompressionFormatDetector.CompressionFormat.TAR_XZ
+            CompressionFormatDetector.CompressionFormat.TAR
         };
     }
     
@@ -93,10 +95,7 @@ public class TarUnzipStrategy extends AbstractArchiveUnzipStrategy {
      * 检查是否为TAR相关格式
      */
     private boolean isTarFormat(CompressionFormatDetector.CompressionFormat format) {
-        return format == CompressionFormatDetector.CompressionFormat.TAR ||
-               format == CompressionFormatDetector.CompressionFormat.TAR_GZ ||
-               format == CompressionFormatDetector.CompressionFormat.TAR_BZ2 ||
-               format == CompressionFormatDetector.CompressionFormat.TAR_XZ;
+        return format == CompressionFormatDetector.CompressionFormat.TAR;
     }
 
     /**
@@ -104,7 +103,7 @@ public class TarUnzipStrategy extends AbstractArchiveUnzipStrategy {
      */
     private byte[] readEntryContent(InputStream inputStream, long size) throws IOException {
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];
+            byte[] buffer = new byte[config.getBufferSize()];
             int bytesRead;
             long remainingBytes = size;
             

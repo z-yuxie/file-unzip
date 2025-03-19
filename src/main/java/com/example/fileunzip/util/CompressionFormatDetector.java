@@ -4,6 +4,12 @@ import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.archivers.ArchiveStreamFactory;
 import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.commons.compress.compressors.lzma.LZMACompressorInputStream;
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
+import org.apache.commons.compress.compressors.snappy.SnappyCompressorInputStream;
+import org.apache.commons.compress.compressors.lz4.BlockLZ4CompressorInputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -30,6 +36,8 @@ public class CompressionFormatDetector {
         BZIP2("bz2"),
         XZ("xz"),
         LZMA("lzma"),
+        SNAPPY("snappy"),
+        LZ4("lz4"),
         UNKNOWN("unknown");
         
         private final String extension;
@@ -79,6 +87,12 @@ public class CompressionFormatDetector {
         if (isLzma(data)) {
             return CompressionFormat.LZMA;
         }
+        if (isSnappy(data)) {
+            return CompressionFormat.SNAPPY;
+        }
+        if (isLz4(data)) {
+            return CompressionFormat.LZ4;
+        }
         
         return CompressionFormat.UNKNOWN;
     }
@@ -112,13 +126,17 @@ public class CompressionFormatDetector {
                     return archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR,
                         compressorFactory.createCompressorInputStream(CompressorStreamFactory.XZ, bis));
                 case GZIP:
-                    return compressorFactory.createCompressorInputStream(CompressorStreamFactory.GZIP, bis);
+                    return new GzipCompressorInputStream(bis);
                 case BZIP2:
-                    return compressorFactory.createCompressorInputStream(CompressorStreamFactory.BZIP2, bis);
+                    return new BZip2CompressorInputStream(bis);
                 case XZ:
-                    return compressorFactory.createCompressorInputStream(CompressorStreamFactory.XZ, bis);
+                    return new XZCompressorInputStream(bis);
                 case LZMA:
-                    return compressorFactory.createCompressorInputStream(CompressorStreamFactory.LZMA, bis);
+                    return new LZMACompressorInputStream(bis);
+                case SNAPPY:
+                    return new SnappyCompressorInputStream(bis);
+                case LZ4:
+                    return new BlockLZ4CompressorInputStream(bis);
                 default:
                     throw new IllegalArgumentException("不支持的压缩格式: " + format);
             }
@@ -184,5 +202,13 @@ public class CompressionFormatDetector {
      */
     private static boolean isLzma(byte[] data) {
         return data[0] == 0x5D && data[1] == 0x00 && data[2] == 0x00;
+    }
+    
+    private static boolean isSnappy(byte[] data) {
+        return data.length >= 4 && data[0] == (byte) 0x82 && data[1] == 'S' && data[2] == 'N' && data[3] == 'A';
+    }
+    
+    private static boolean isLz4(byte[] data) {
+        return data.length >= 4 && data[0] == 0x04 && data[1] == 0x22 && data[2] == 0x4D && data[3] == 0x18;
     }
 } 
