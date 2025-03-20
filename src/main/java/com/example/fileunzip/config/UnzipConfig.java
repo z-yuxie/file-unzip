@@ -1,62 +1,125 @@
 package com.example.fileunzip.config;
 
-import lombok.Data;
 import lombok.Builder;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.Set;
+import java.util.HashSet;
 
 /**
  * 解压配置类
  */
 @Data
 @Builder
+@Slf4j
 public class UnzipConfig {
-    // 文件大小限制（默认100MB）
+    // 文件大小限制
     @Builder.Default
-    private long maxFileSize = 100 * 1024 * 1024;
+    private long maxFileSize = 1024L * 1024L * 100L; // 100MB
     
-    // 缓冲区大小（默认8KB）
+    // 缓冲区大小
     @Builder.Default
-    private int bufferSize = 8 * 1024;
+    private int bufferSize = 8192;
     
-    // 临时文件目录
+    // 临时目录
     @Builder.Default
     private String tempDirectory = System.getProperty("java.io.tmpdir");
     
-    // 是否启用文件类型验证
+    // 允许的文件类型
     @Builder.Default
-    private boolean enableFileTypeValidation = true;
+    private Set<String> allowedFileTypes = new HashSet<>();
     
-    // 是否启用路径安全检查
+    // 最大文件数量
     @Builder.Default
-    private boolean enablePathSecurityCheck = true;
+    private int maxFileCount = 1000;
     
-    // 是否启用校验和验证
+    // 安全检查配置
     @Builder.Default
-    private boolean enableChecksumValidation = false;
-    
-    // 是否启用病毒扫描
+    private boolean enablePathTraversalCheck = true;
     @Builder.Default
-    private boolean enableVirusScan = false;
-    
-    // 是否启用并发解压
+    private boolean enableFileTypeCheck = true;
     @Builder.Default
-    private boolean enableConcurrentUnzip = false;
+    private boolean enableFileSizeCheck = true;
+    @Builder.Default
+    private boolean enableFileCountCheck = true;
     
-    // 并发解压线程数
+    // 性能配置
+    @Builder.Default
+    private boolean enableConcurrentUnzip = true;
     @Builder.Default
     private int concurrentThreads = Runtime.getRuntime().availableProcessors();
-    
-    // 解压超时时间（毫秒）
     @Builder.Default
-    private long unzipTimeout = 300000; // 5分钟
+    private long unzipTimeout = 60000L; // 60秒
     
-    // 是否启用进度回调
+    // 进度回调
     @Builder.Default
     private boolean enableProgressCallback = true;
     
-    /**
-     * 获取默认配置
-     */
+    // 校验和验证
+    @Builder.Default
+    private boolean enableChecksumValidation = false;
+    
+    // 病毒扫描
+    @Builder.Default
+    private boolean enableVirusScan = false;
+    
+    public void validate() {
+        if (maxFileSize <= 0) {
+            throw new IllegalArgumentException("maxFileSize must be positive");
+        }
+        if (bufferSize <= 0) {
+            throw new IllegalArgumentException("bufferSize must be positive");
+        }
+        if (tempDirectory == null || tempDirectory.trim().isEmpty()) {
+            throw new IllegalArgumentException("tempDirectory cannot be empty");
+        }
+        if (maxFileCount <= 0) {
+            throw new IllegalArgumentException("maxFileCount must be positive");
+        }
+        if (concurrentThreads <= 0) {
+            throw new IllegalArgumentException("concurrentThreads must be positive");
+        }
+        if (unzipTimeout <= 0) {
+            throw new IllegalArgumentException("unzipTimeout must be positive");
+        }
+    }
+    
     public static UnzipConfig getDefaultConfig() {
-        return UnzipConfig.builder().build();
+        UnzipConfig config = UnzipConfig.builder()
+            .maxFileSize(1024L * 1024L * 100L) // 100MB
+            .bufferSize(8192)
+            .tempDirectory(System.getProperty("java.io.tmpdir"))
+            .allowedFileTypes(getDefaultAllowedFileTypes())
+            .maxFileCount(1000)
+            .enablePathTraversalCheck(true)
+            .enableFileTypeCheck(true)
+            .enableFileSizeCheck(true)
+            .enableFileCountCheck(true)
+            .enableConcurrentUnzip(true)
+            .concurrentThreads(Runtime.getRuntime().availableProcessors())
+            .unzipTimeout(60000L) // 60秒
+            .enableProgressCallback(true)
+            .enableChecksumValidation(false)
+            .enableVirusScan(false)
+            .build();
+            
+        config.validate();
+        return config;
+    }
+    
+    private static Set<String> getDefaultAllowedFileTypes() {
+        Set<String> types = new HashSet<>();
+        types.add("txt");
+        types.add("pdf");
+        types.add("doc");
+        types.add("docx");
+        types.add("xls");
+        types.add("xlsx");
+        types.add("jpg");
+        types.add("jpeg");
+        types.add("png");
+        types.add("gif");
+        return types;
     }
 } 

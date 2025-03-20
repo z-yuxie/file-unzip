@@ -60,37 +60,24 @@ public class UnzipConfigManager {
         }
     }
     
-    public void addListener(UnzipConfigChangeListener listener) {
-        configLock.writeLock().lock();
-        try {
-            listeners.add(listener);
-        } finally {
-            configLock.writeLock().unlock();
-        }
-    }
-    
-    public void removeListener(UnzipConfigChangeListener listener) {
-        configLock.writeLock().lock();
-        try {
-            listeners.remove(listener);
-        } finally {
-            configLock.writeLock().unlock();
-        }
-    }
-    
     private void notifyListeners(UnzipConfig oldConfig, UnzipConfig newConfig) {
-        configLock.readLock().lock();
-        try {
-            for (UnzipConfigChangeListener listener : listeners) {
-                try {
-                    listener.onConfigChanged(oldConfig, newConfig);
-                } catch (Exception e) {
-                    log.error("通知配置变更监听器失败", e);
-                }
+        for (UnzipConfigChangeListener listener : listeners) {
+            try {
+                listener.onConfigChanged(oldConfig, newConfig);
+            } catch (Exception e) {
+                log.error("通知配置变更监听器失败", e);
             }
-        } finally {
-            configLock.readLock().unlock();
         }
+    }
+    
+    public void addConfigChangeListener(UnzipConfigChangeListener listener) {
+        if (listener != null) {
+            listeners.add(listener);
+        }
+    }
+    
+    public void removeConfigChangeListener(UnzipConfigChangeListener listener) {
+        listeners.remove(listener);
     }
     
     private void loadConfig() {
@@ -108,14 +95,17 @@ public class UnzipConfigManager {
                 .maxFileSize(Long.parseLong(props.getProperty("maxFileSize", String.valueOf(config.getMaxFileSize()))))
                 .bufferSize(Integer.parseInt(props.getProperty("bufferSize", String.valueOf(config.getBufferSize()))))
                 .tempDirectory(props.getProperty("tempDirectory", config.getTempDirectory()))
-                .enableFileTypeValidation(Boolean.parseBoolean(props.getProperty("enableFileTypeValidation", String.valueOf(config.isEnableFileTypeValidation()))))
-                .enablePathSecurityCheck(Boolean.parseBoolean(props.getProperty("enablePathSecurityCheck", String.valueOf(config.isEnablePathSecurityCheck()))))
-                .enableChecksumValidation(Boolean.parseBoolean(props.getProperty("enableChecksumValidation", String.valueOf(config.isEnableChecksumValidation()))))
-                .enableVirusScan(Boolean.parseBoolean(props.getProperty("enableVirusScan", String.valueOf(config.isEnableVirusScan()))))
+                .maxFileCount(Integer.parseInt(props.getProperty("maxFileCount", String.valueOf(config.getMaxFileCount()))))
+                .enablePathTraversalCheck(Boolean.parseBoolean(props.getProperty("enablePathTraversalCheck", String.valueOf(config.isEnablePathTraversalCheck()))))
+                .enableFileTypeCheck(Boolean.parseBoolean(props.getProperty("enableFileTypeCheck", String.valueOf(config.isEnableFileTypeCheck()))))
+                .enableFileSizeCheck(Boolean.parseBoolean(props.getProperty("enableFileSizeCheck", String.valueOf(config.isEnableFileSizeCheck()))))
+                .enableFileCountCheck(Boolean.parseBoolean(props.getProperty("enableFileCountCheck", String.valueOf(config.isEnableFileCountCheck()))))
                 .enableConcurrentUnzip(Boolean.parseBoolean(props.getProperty("enableConcurrentUnzip", String.valueOf(config.isEnableConcurrentUnzip()))))
                 .concurrentThreads(Integer.parseInt(props.getProperty("concurrentThreads", String.valueOf(config.getConcurrentThreads()))))
                 .unzipTimeout(Long.parseLong(props.getProperty("unzipTimeout", String.valueOf(config.getUnzipTimeout()))))
                 .enableProgressCallback(Boolean.parseBoolean(props.getProperty("enableProgressCallback", String.valueOf(config.isEnableProgressCallback()))))
+                .enableChecksumValidation(Boolean.parseBoolean(props.getProperty("enableChecksumValidation", String.valueOf(config.isEnableChecksumValidation()))))
+                .enableVirusScan(Boolean.parseBoolean(props.getProperty("enableVirusScan", String.valueOf(config.isEnableVirusScan()))))
                 .build();
             
             updateConfig(newConfig);
@@ -129,10 +119,11 @@ public class UnzipConfigManager {
         props.setProperty("maxFileSize", String.valueOf(config.getMaxFileSize()));
         props.setProperty("bufferSize", String.valueOf(config.getBufferSize()));
         props.setProperty("tempDirectory", config.getTempDirectory());
-        props.setProperty("enableFileTypeValidation", String.valueOf(config.isEnableFileTypeValidation()));
-        props.setProperty("enablePathSecurityCheck", String.valueOf(config.isEnablePathSecurityCheck()));
-        props.setProperty("enableChecksumValidation", String.valueOf(config.isEnableChecksumValidation()));
-        props.setProperty("enableVirusScan", String.valueOf(config.isEnableVirusScan()));
+        props.setProperty("maxFileCount", String.valueOf(config.getMaxFileCount()));
+        props.setProperty("enablePathTraversalCheck", String.valueOf(config.isEnablePathTraversalCheck()));
+        props.setProperty("enableFileTypeCheck", String.valueOf(config.isEnableFileTypeCheck()));
+        props.setProperty("enableFileSizeCheck", String.valueOf(config.isEnableFileSizeCheck()));
+        props.setProperty("enableFileCountCheck", String.valueOf(config.isEnableFileCountCheck()));
         props.setProperty("enableConcurrentUnzip", String.valueOf(config.isEnableConcurrentUnzip()));
         props.setProperty("concurrentThreads", String.valueOf(config.getConcurrentThreads()));
         props.setProperty("unzipTimeout", String.valueOf(config.getUnzipTimeout()));

@@ -1,7 +1,7 @@
 package com.example.fileunzip.exception;
 
 /**
- * 解压错误码枚举
+ * 解压错误码
  */
 public enum UnzipErrorCode {
     INVALID_FORMAT("无效的压缩格式"),
@@ -13,7 +13,9 @@ public enum UnzipErrorCode {
     SECURITY_ERROR("安全错误"),
     MEMORY_LIMIT_EXCEEDED("超出内存限制"),
     FILE_COUNT_LIMIT_EXCEEDED("超出文件数量限制"),
-    PATH_TRAVERSAL_DETECTED("检测到路径遍历攻击");
+    PATH_TRAVERSAL_DETECTED("检测到路径遍历攻击"),
+    UNZIP_ERROR("解压错误"),
+    UNKNOWN_ERROR("未知错误");
 
     private final String message;
 

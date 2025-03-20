@@ -45,4 +45,56 @@ public interface UnzipMetrics {
      * @param count 文件数量
      */
     void recordFileCount(int count);
+    
+    /**
+     * 记录解压速度
+     *
+     * @param bytesPerSecond 每秒解压的字节数
+     */
+    void recordUnzipSpeed(long bytesPerSecond);
+    
+    /**
+     * 记录峰值内存使用
+     *
+     * @param bytes 峰值内存使用字节数
+     */
+    void recordPeakMemoryUsage(long bytes);
+    
+    /**
+     * 记录并发解压任务数
+     *
+     * @param count 并发任务数
+     */
+    void recordConcurrentTasks(int count);
+    
+    /**
+     * 记录校验和验证结果
+     *
+     * @param isValid 验证是否通过
+     */
+    void recordChecksumValidation(boolean isValid);
+    
+    /**
+     * 记录病毒扫描结果
+     *
+     * @param isClean 是否安全
+     */
+    void recordVirusScan(boolean isClean);
+    
+    /**
+     * 获取监控数据快照
+     *
+     * @return 监控数据快照
+     */
+    UnzipMetricsSnapshot getSnapshot();
+    
+    /**
+     * 持久化监控数据
+     */
+    void persist();
+    
+    /**
+     * 重置监控数据
+     */
+    void reset();
 } 
