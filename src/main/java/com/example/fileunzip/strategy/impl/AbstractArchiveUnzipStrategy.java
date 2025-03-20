@@ -1,200 +1,261 @@
 package com.example.fileunzip.strategy.impl;
 
+import com.example.fileunzip.callback.UnzipProgressCallback;
+import com.example.fileunzip.config.SecurityConfig;
 import com.example.fileunzip.config.UnzipConfig;
-import com.example.fileunzip.config.UnzipConfigManager;
+import com.example.fileunzip.exception.UnzipErrorCode;
 import com.example.fileunzip.exception.UnzipException;
 import com.example.fileunzip.model.FileInfo;
 import com.example.fileunzip.strategy.UnzipStrategy;
 import com.example.fileunzip.util.CompressionFormatDetector;
+import lombok.extern.slf4j.Slf4j;
 import net.sf.sevenzipjbinding.*;
+import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
+import org.apache.commons.io.FilenameUtils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 归档文件解压策略的抽象基类
- * 提供通用的7-Zip-JBinding实现逻辑
+ * 压缩文件解压抽象基类
  */
+@Slf4j
 public abstract class AbstractArchiveUnzipStrategy implements UnzipStrategy {
     
-    protected final UnzipConfig config;
+    protected final UnzipConfig unzipConfig;
+    protected final SecurityConfig securityConfig;
+    protected File tempFile;
+    protected IInArchive archive;
     
-    static {
-        try {
-            SevenZip.initSevenZipFromPlatformJAR();
-        } catch (Exception e) {
-            throw new RuntimeException("初始化7-Zip-JBinding失败", e);
-        }
+    protected AbstractArchiveUnzipStrategy(UnzipConfig unzipConfig, SecurityConfig securityConfig) {
+        this.unzipConfig = unzipConfig;
+        this.securityConfig = securityConfig;
     }
     
-    protected AbstractArchiveUnzipStrategy() {
-        this.config = UnzipConfigManager.getInstance().getConfig();
-    }
-
     @Override
-    public Map<FileInfo, byte[]> unzip(byte[] data) throws IOException {
-        Map<FileInfo, byte[]> result = new HashMap<>();
-        
-        // 检查输入数据大小
-        if (data.length > config.getMaxFileSize()) {
-            throw new UnzipException("文件大小超过限制: " + data.length + " > " + config.getMaxFileSize());
-        }
-        
-        // 检测压缩格式
-        CompressionFormatDetector.CompressionFormat format = CompressionFormatDetector.detect(data);
-        
-        // 验证是否为支持的格式
-        if (!isSupportedFormat(format)) {
-            throw new UnzipException("不支持的文件格式: " + format);
-        }
-        
-        // 创建临时文件
-        String timestamp = String.valueOf(System.currentTimeMillis());
-        File tempFile = File.createTempFile("temp_archive_" + timestamp + "_", getTempFileExtension(), new File(config.getTempDirectory()));
-        try {
-            // 写入数据到临时文件
-            try (FileOutputStream fos = new FileOutputStream(tempFile)) {
-                fos.write(data);
-            }
-            
-            // 打开归档文件
-            try (RandomAccessFile randomAccessFile = new RandomAccessFile(tempFile, "r")) {
-                IInArchive archive = openArchive(randomAccessFile);
-                
-                try {
-                    // 解压所有文件
-                    archive.extract(null, false, createExtractCallback(archive, result));
-                } finally {
-                    archive.close();
-                }
-            }
-        } finally {
-            // 删除临时文件
-            if (tempFile.exists()) {
-                tempFile.delete();
-            }
-        }
-        
-        return result;
-    }
-
-    /**
-     * 检查是否为支持的格式
-     */
-    protected abstract boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format);
-
-    /**
-     * 获取临时文件扩展名
-     */
-    protected abstract String getTempFileExtension();
-
-    /**
-     * 打开归档文件
-     */
-    protected abstract IInArchive openArchive(RandomAccessFile randomAccessFile) throws IOException;
-
-    /**
-     * 创建解压回调
-     */
-    protected IArchiveExtractCallback createExtractCallback(IInArchive archive, Map<FileInfo, byte[]> result) {
-        return new IArchiveExtractCallback() {
-            private ByteArrayOutputStream currentStream;
-            private int currentIndex;
-            
-            @Override
-            public void setTotal(long total) {}
-            
-            @Override
-            public void setCompleted(long complete) {}
-            
-            @Override
-            public ISequentialOutStream getStream(int index, ExtractAskMode extractAskMode) throws SevenZipException {
-                if (extractAskMode != ExtractAskMode.EXTRACT) {
-                    return null;
-                }
-                
-                if ((Boolean) archive.getProperty(index, PropID.IS_FOLDER)) {
-                    return null;
-                }
-                
-                // 检查文件大小
-                Long size = (Long) archive.getProperty(index, PropID.SIZE);
-                if (size != null && size > config.getMaxFileSize()) {
-                    throw new UnzipException("文件大小超过限制: " + size + " > " + config.getMaxFileSize());
-                }
-                
-                // 检查文件路径
-                if (config.isEnablePathSecurityCheck()) {
-                    String path = (String) archive.getProperty(index, PropID.PATH);
-                    if (path != null && !isValidPath(path)) {
-                        throw new UnzipException("非法的文件路径: " + path);
-                    }
-                }
-                
-                currentIndex = index;
-                currentStream = new ByteArrayOutputStream();
-                return new ISequentialOutStream() {
-                    @Override
-                    public int write(byte[] data) throws SevenZipException {
-                        currentStream.write(data, 0, data.length);
-                        return data.length;
-                    }
-                };
-            }
-            
-            @Override
-            public void prepareOperation(ExtractAskMode extractAskMode) {}
-            
-            @Override
-            public void setOperationResult(ExtractOperationResult extractOperationResult) throws SevenZipException {
-                if (currentStream != null) {
-                    try {
-                        currentStream.close();
-                        String path = (String) archive.getProperty(currentIndex, PropID.PATH);
-                        Long size = (Long) archive.getProperty(currentIndex, PropID.SIZE);
-                        Long modificationTime = (Long) archive.getProperty(currentIndex, PropID.LAST_MODIFICATION_TIME);
-                        
-                        FileInfo fileInfo = FileInfo.builder()
-                            .fileName(path)
-                            .size(size)
-                            .lastModified(modificationTime != null ? modificationTime : System.currentTimeMillis())
-                            .path(path)
-                            .build();
-                        result.put(fileInfo, currentStream.toByteArray());
-                    } catch (IOException e) {
-                        throw new SevenZipException("关闭输出流失败", e);
-                    }
-                }
-            }
-        };
+    public Map<FileInfo, byte[]> unzip(InputStream inputStream) throws UnzipException {
+        return unzip(inputStream, null, null);
     }
     
-    /**
-     * 检查文件路径是否合法
-     */
-    private boolean isValidPath(String path) {
-        if (path == null || path.isEmpty()) {
-            return false;
+    @Override
+    public Map<FileInfo, byte[]> unzip(InputStream inputStream, String password) throws UnzipException {
+        return unzip(inputStream, password, null);
+    }
+    
+    @Override
+    public Map<FileInfo, byte[]> unzip(InputStream inputStream, UnzipProgressCallback callback) throws UnzipException {
+        return unzip(inputStream, null, callback);
+    }
+    
+    @Override
+    public Map<FileInfo, byte[]> unzip(InputStream inputStream, String password, UnzipProgressCallback callback) throws UnzipException {
+        try {
+            // 创建临时文件
+            createTempFile(inputStream);
+            
+            // 打开压缩文件
+            try (RandomAccessFile randomAccessFile = new RandomAccessFile(tempFile, "r")) {
+                archive = openArchive(new RandomAccessFileInStream(randomAccessFile));
+                
+                // 获取文件总大小和数量
+                long totalSize = calculateTotalSize(archive);
+                int totalFiles = archive.getNumberOfItems();
+                
+                // 通知开始解压
+                if (callback != null) {
+                    callback.onStart(totalSize, totalFiles);
+                }
+                
+                Map<FileInfo, byte[]> result = new HashMap<>();
+                
+                // 遍历压缩文件中的每个条目
+                for (int i = 0; i < archive.getNumberOfItems(); i++) {
+                    String path = archive.getStringProperty(i, PropID.PATH);
+                    if (path == null || path.isEmpty()) {
+                        continue;
+                    }
+                    
+                    // 检查是否为文件夹
+                    Boolean isFolder = (Boolean) archive.getProperty(i, PropID.IS_FOLDER);
+                    if (isFolder != null && isFolder) {
+                        continue;
+                    }
+                    
+                    // 安全检查
+                    validatePath(path);
+                    validateFileType(path);
+                    
+                    // 提取文件
+                    byte[] content = extractFile(archive, i, password);
+                    
+                    // 安全检查
+                    validateFileSize(content.length);
+                    
+                    // 创建文件信息
+                    FileInfo fileInfo = FileInfo.builder()
+                        .fileName(FilenameUtils.getName(path))
+                        .path(path)
+                        .size(content.length)
+                        .lastModified(getLastModifiedTime(archive, i))
+                        .build();
+                    
+                    result.put(fileInfo, content);
+                    
+                    // 通知进度
+                    if (callback != null) {
+                        callback.onFileComplete(path, i + 1, totalFiles);
+                    }
+                }
+                
+                // 通知完成
+                if (callback != null) {
+                    callback.onComplete();
+                }
+                
+                return result;
+            }
+        } catch (Exception e) {
+            if (callback != null) {
+                callback.onError(e.getMessage());
+            }
+            throw translateException(e);
+        } finally {
+            cleanup();
         }
-        
-        // 检查路径是否包含危险字符
-        String[] dangerousChars = {"..", "\\", ":", "*", "?", "\"", "<", ">", "|"};
-        for (String dangerousChar : dangerousChars) {
-            if (path.contains(dangerousChar)) {
-                return false;
+    }
+    
+    @Override
+    public void close() throws IOException {
+        cleanup();
+    }
+    
+    protected abstract IInArchive openArchive(IInStream inStream) throws SevenZipException;
+    
+    protected abstract boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format);
+    
+    protected abstract String getTempFileExtension();
+    
+    private void createTempFile(InputStream inputStream) throws UnzipException {
+        try {
+            tempFile = File.createTempFile("unzip_", getTempFileExtension(), new File(unzipConfig.getTempDirectory()));
+            try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                byte[] buffer = new byte[unzipConfig.getBufferSize()];
+                int bytesRead;
+                long totalBytesRead = 0;
+                
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    totalBytesRead += bytesRead;
+                    validateFileSize(totalBytesRead);
+                    fos.write(buffer, 0, bytesRead);
+                }
+            }
+        } catch (IOException e) {
+            throw new UnzipException(UnzipErrorCode.IO_ERROR, "创建临时文件失败", e);
+        }
+    }
+    
+    private void validatePath(String path) throws UnzipException {
+        if (securityConfig.isPathTraversalCheckEnabled() && !isPathSafe(path)) {
+            throw new UnzipException(UnzipErrorCode.SECURITY_ERROR, "检测到路径遍历攻击: " + path);
+        }
+    }
+    
+    private void validateFileType(String path) throws UnzipException {
+        if (securityConfig.isFileTypeCheckEnabled() && !isFileTypeAllowed(path)) {
+            throw new UnzipException(UnzipErrorCode.SECURITY_ERROR, "不允许的文件类型: " + path);
+        }
+    }
+    
+    protected void validateFileSize(long size) throws UnzipException {
+        if (securityConfig.isFileSizeCheckEnabled() && size > securityConfig.getMaxFileSize()) {
+            throw new UnzipException(UnzipErrorCode.FILE_TOO_LARGE, 
+                String.format("文件大小超过限制: %d > %d", size, securityConfig.getMaxFileSize()));
+        }
+    }
+    
+    private long calculateTotalSize(IInArchive archive) throws SevenZipException {
+        long totalSize = 0;
+        for (int i = 0; i < archive.getNumberOfItems(); i++) {
+            Long size = (Long) archive.getProperty(i, PropID.SIZE);
+            if (size != null) {
+                totalSize += size;
             }
         }
+        return totalSize;
+    }
+    
+    private long getLastModifiedTime(IInArchive archive, int index) throws SevenZipException {
+        Object time = archive.getProperty(index, PropID.LAST_MODIFICATION_TIME);
+        return time instanceof Date ? ((Date) time).getTime() : System.currentTimeMillis();
+    }
+    
+    private byte[] extractFile(IInArchive archive, int index, String password) throws SevenZipException {
+        ExtractOperationResult result;
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         
-        // 检查路径长度
-        if (path.length() > 255) {
+        result = archive.extractSlow(index, new ISequentialOutStream() {
+            @Override
+            public int write(byte[] data) throws SevenZipException {
+                try {
+                    outputStream.write(data);
+                    return data.length;
+                } catch (IOException e) {
+                    throw new SevenZipException("写入数据失败", e);
+                }
+            }
+        }, password);
+        
+        if (result != ExtractOperationResult.OK) {
+            throw new SevenZipException("提取文件失败: " + result);
+        }
+        
+        return outputStream.toByteArray();
+    }
+    
+    private void cleanup() {
+        if (archive != null) {
+            try {
+                archive.close();
+            } catch (SevenZipException e) {
+                log.warn("关闭压缩文件失败", e);
+            }
+            archive = null;
+        }
+        
+        if (tempFile != null && tempFile.exists()) {
+            if (!tempFile.delete()) {
+                tempFile.deleteOnExit();
+            }
+            tempFile = null;
+        }
+    }
+    
+    protected boolean isPathSafe(String path) {
+        if (path == null) {
             return false;
         }
         
-        return true;
+        String normalizedPath = FilenameUtils.normalize(path);
+        return normalizedPath != null && !normalizedPath.startsWith("/") && !normalizedPath.startsWith("..");
+    }
+    
+    protected boolean isFileTypeAllowed(String path) {
+        if (path == null) {
+            return false;
+        }
+        
+        String extension = FilenameUtils.getExtension(path);
+        return extension != null && securityConfig.getAllowedFileTypes().contains(extension.toLowerCase());
+    }
+    
+    private UnzipException translateException(Exception e) {
+        if (e instanceof SevenZipException) {
+            return new UnzipException(UnzipErrorCode.IO_ERROR, "解压文件失败: " + e.getMessage(), e);
+        }
+        return new UnzipException(UnzipErrorCode.IO_ERROR, "解压文件失败: " + e.getMessage(), e);
     }
 } 

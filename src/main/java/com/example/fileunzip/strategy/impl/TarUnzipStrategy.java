@@ -1,5 +1,8 @@
 package com.example.fileunzip.strategy.impl;
 
+import com.example.fileunzip.callback.UnzipProgressCallback;
+import com.example.fileunzip.config.SecurityConfig;
+import com.example.fileunzip.config.UnzipConfig;
 import com.example.fileunzip.exception.UnzipException;
 import com.example.fileunzip.model.FileInfo;
 import com.example.fileunzip.util.CompressionFormatDetector;
@@ -26,6 +29,10 @@ import java.util.Map;
  */
 public class TarUnzipStrategy extends AbstractArchiveUnzipStrategy {
 
+    public TarUnzipStrategy(UnzipConfig unzipConfig, SecurityConfig securityConfig) {
+        super(unzipConfig, securityConfig);
+    }
+
     @Override
     protected boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format) {
         return format == CompressionFormatDetector.CompressionFormat.TAR;
@@ -37,51 +44,28 @@ public class TarUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
 
     @Override
-    protected IInArchive openArchive(RandomAccessFile randomAccessFile) throws IOException {
-        try {
-            return SevenZip.openInArchive(ArchiveFormat.TAR, new RandomAccessFileInStream(randomAccessFile));
-        } catch (SevenZipException e) {
-            throw new UnzipException("打开TAR文件失败", e);
-        }
+    protected IInArchive openArchive(IInStream inStream) throws SevenZipException {
+        return SevenZip.openInArchive(ArchiveFormat.TAR, inStream);
     }
 
     @Override
-    public Map<FileInfo, byte[]> unzip(byte[] data) throws IOException {
-        Map<FileInfo, byte[]> result = new HashMap<>();
-        
-        // 检测压缩格式
-        CompressionFormatDetector.CompressionFormat format = CompressionFormatDetector.detect(data);
-        
-        // 验证是否为TAR相关格式
-        if (!isTarFormat(format)) {
-            throw new IllegalArgumentException("不支持的文件格式: " + format);
-        }
-        
-        // 创建TAR输入流
-        try (TarArchiveInputStream tarStream = new TarArchiveInputStream(
-                CompressionFormatDetector.createDecompressor(data, format))) {
-            
-            TarArchiveEntry entry;
-            while ((entry = tarStream.getNextTarEntry()) != null) {
-                if (entry.isDirectory()) {
-                    continue;
-                }
-                
-                // 读取文件内容
-                byte[] content = readEntryContent(tarStream, entry.getSize());
-                
-                // 创建文件信息
-                FileInfo fileInfo = FileInfo.builder()
-                    .fileName(entry.getName())
-                    .size(entry.getSize())
-                    .lastModified(entry.getModTime().getTime())
-                    .path(entry.getName())
-                    .build();
-                
-                result.put(fileInfo, content);
-            }
-        }
-        return result;
+    public Map<FileInfo, byte[]> unzip(InputStream inputStream) throws UnzipException {
+        return super.unzip(inputStream);
+    }
+
+    @Override
+    public Map<FileInfo, byte[]> unzip(InputStream inputStream, String password) throws UnzipException {
+        return super.unzip(inputStream, password);
+    }
+
+    @Override
+    public Map<FileInfo, byte[]> unzip(InputStream inputStream, UnzipProgressCallback callback) throws UnzipException {
+        return super.unzip(inputStream, callback);
+    }
+
+    @Override
+    public Map<FileInfo, byte[]> unzip(InputStream inputStream, String password, UnzipProgressCallback callback) throws UnzipException {
+        return super.unzip(inputStream, password, callback);
     }
 
     @Override
@@ -103,7 +87,7 @@ public class TarUnzipStrategy extends AbstractArchiveUnzipStrategy {
      */
     private byte[] readEntryContent(InputStream inputStream, long size) throws IOException {
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[config.getBufferSize()];
+            byte[] buffer = new byte[unzipConfig.getBufferSize()];
             int bytesRead;
             long remainingBytes = size;
             

@@ -1,8 +1,11 @@
 package com.example.fileunzip.strategy.impl;
 
+import com.example.fileunzip.config.SecurityConfig;
+import com.example.fileunzip.config.UnzipConfig;
 import com.example.fileunzip.util.CompressionFormatDetector;
 import net.sf.sevenzipjbinding.*;
 import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
+import net.sf.sevenzipjbinding.SevenZipException;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -21,6 +24,10 @@ import java.io.RandomAccessFile;
  */
 public class SevenZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
     
+    public SevenZipUnzipStrategy(UnzipConfig unzipConfig, SecurityConfig securityConfig) {
+        super(unzipConfig, securityConfig);
+    }
+    
     @Override
     protected boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format) {
         return format == CompressionFormatDetector.CompressionFormat.SEVEN_ZIP;
@@ -32,8 +39,8 @@ public class SevenZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
 
     @Override
-    protected IInArchive openArchive(RandomAccessFile randomAccessFile) throws IOException {
-        return SevenZip.openInArchive(null, new RandomAccessFileInStream(randomAccessFile));
+    protected IInArchive openArchive(IInStream inStream) throws SevenZipException {
+        return SevenZip.openInArchive(ArchiveFormat.SEVEN_ZIP, inStream);
     }
 
     @Override

@@ -1,17 +1,15 @@
 package com.example.fileunzip.strategy.impl;
 
+import com.example.fileunzip.config.SecurityConfig;
+import com.example.fileunzip.config.UnzipConfig;
 import com.example.fileunzip.exception.UnzipException;
 import com.example.fileunzip.model.FileInfo;
 import com.example.fileunzip.util.CompressionFormatDetector;
 import net.sf.sevenzipjbinding.*;
 import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -28,10 +26,8 @@ import java.util.Map;
  */
 public class RarUnzipStrategy extends AbstractArchiveUnzipStrategy {
     
-    @Override
-    public Map<FileInfo, byte[]> unzip(byte[] data) throws IOException {
-        // 使用父类的通用实现
-        return super.unzip(data);
+    public RarUnzipStrategy(UnzipConfig unzipConfig, SecurityConfig securityConfig) {
+        super(unzipConfig, securityConfig);
     }
 
     @Override
@@ -45,12 +41,8 @@ public class RarUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
 
     @Override
-    protected IInArchive openArchive(RandomAccessFile randomAccessFile) throws IOException {
-        try {
-            return SevenZip.openInArchive(ArchiveFormat.RAR, new RandomAccessFileInStream(randomAccessFile));
-        } catch (SevenZipException e) {
-            throw new UnzipException("打开RAR文件失败", e);
-        }
+    protected IInArchive openArchive(IInStream inStream) throws SevenZipException {
+        return SevenZip.openInArchive(ArchiveFormat.RAR, inStream);
     }
 
     @Override

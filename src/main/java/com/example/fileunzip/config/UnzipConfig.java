@@ -1,58 +1,62 @@
 package com.example.fileunzip.config;
 
-import lombok.Builder;
 import lombok.Data;
+import lombok.Builder;
 
+/**
+ * 解压配置类
+ */
 @Data
 @Builder
 public class UnzipConfig {
     // 文件大小限制（默认100MB）
-    private long maxFileSize;
+    @Builder.Default
+    private long maxFileSize = 100 * 1024 * 1024;
     
     // 缓冲区大小（默认8KB）
-    private int bufferSize;
+    @Builder.Default
+    private int bufferSize = 8 * 1024;
     
     // 临时文件目录
-    private String tempDirectory;
+    @Builder.Default
+    private String tempDirectory = System.getProperty("java.io.tmpdir");
     
     // 是否启用文件类型验证
-    private boolean enableFileTypeValidation;
+    @Builder.Default
+    private boolean enableFileTypeValidation = true;
     
     // 是否启用路径安全检查
-    private boolean enablePathSecurityCheck;
+    @Builder.Default
+    private boolean enablePathSecurityCheck = true;
     
     // 是否启用校验和验证
-    private boolean enableChecksumValidation;
+    @Builder.Default
+    private boolean enableChecksumValidation = false;
     
     // 是否启用病毒扫描
-    private boolean enableVirusScan;
+    @Builder.Default
+    private boolean enableVirusScan = false;
     
     // 是否启用并发解压
-    private boolean enableConcurrentUnzip;
+    @Builder.Default
+    private boolean enableConcurrentUnzip = false;
     
     // 并发解压线程数
-    private int concurrentThreads;
+    @Builder.Default
+    private int concurrentThreads = Runtime.getRuntime().availableProcessors();
     
     // 解压超时时间（毫秒）
-    private long unzipTimeout;
+    @Builder.Default
+    private long unzipTimeout = 300000; // 5分钟
     
     // 是否启用进度回调
-    private boolean enableProgressCallback;
+    @Builder.Default
+    private boolean enableProgressCallback = true;
     
-    // 默认配置
+    /**
+     * 获取默认配置
+     */
     public static UnzipConfig getDefaultConfig() {
-        return UnzipConfig.builder()
-            .maxFileSize(100 * 1024 * 1024) // 100MB
-            .bufferSize(8 * 1024) // 8KB
-            .tempDirectory(System.getProperty("java.io.tmpdir"))
-            .enableFileTypeValidation(true)
-            .enablePathSecurityCheck(true)
-            .enableChecksumValidation(false)
-            .enableVirusScan(false)
-            .enableConcurrentUnzip(false)
-            .concurrentThreads(Runtime.getRuntime().availableProcessors())
-            .unzipTimeout(300000) // 5分钟
-            .enableProgressCallback(true)
-            .build();
+        return UnzipConfig.builder().build();
     }
 } 
