@@ -1,6 +1,9 @@
 package com.example.fileunzip.monitor;
 
 import com.example.fileunzip.exception.UnzipErrorCode;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * 解压监控接口
@@ -97,4 +100,14 @@ public interface UnzipMetrics {
      * 重置监控数据
      */
     void reset();
+
+    void recordProcessingTime(long time);
+    
+    void recordBytesProcessed(long bytes);
+    
+    void recordFilesProcessed(int count);
+    
+    void updatePeakMemoryUsage();
+    
+    Map<String, Object> getMetrics();
 } 

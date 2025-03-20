@@ -7,6 +7,7 @@ import com.example.fileunzip.exception.UnzipErrorCode;
 import com.example.fileunzip.exception.UnzipException;
 import com.example.fileunzip.model.FileInfo;
 import com.example.fileunzip.util.CompressionFormatDetector;
+import com.example.fileunzip.util.UnzipUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
@@ -105,7 +106,7 @@ public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
             
             while ((bytesRead = compressorInputStream.read(buffer)) != -1) {
                 totalBytesRead += bytesRead;
-                validateFileSize(totalBytesRead);
+                UnzipUtils.validateFileSize(totalBytesRead, securityConfig);
                 outputStream.write(buffer, 0, bytesRead);
                 
                 // 通知进度

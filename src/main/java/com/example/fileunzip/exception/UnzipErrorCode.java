@@ -10,12 +10,15 @@ public enum UnzipErrorCode {
     FILE_TOO_LARGE("文件过大"),
     UNSUPPORTED_FORMAT("不支持的压缩格式"),
     IO_ERROR("IO错误"),
-    SECURITY_ERROR("安全错误"),
+    SECURITY_ERROR("安全检查错误"),
     MEMORY_LIMIT_EXCEEDED("超出内存限制"),
     FILE_COUNT_LIMIT_EXCEEDED("超出文件数量限制"),
     PATH_TRAVERSAL_DETECTED("检测到路径遍历攻击"),
     UNZIP_ERROR("解压错误"),
-    UNKNOWN_ERROR("未知错误");
+    UNKNOWN_ERROR("未知错误"),
+    MEMORY_ERROR("内存不足"),
+    TIMEOUT_ERROR("解压超时"),
+    INTERRUPTED_ERROR("解压被中断");
 
     private final String message;
 

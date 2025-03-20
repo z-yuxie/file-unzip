@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * 默认解压监控实现
@@ -132,5 +134,41 @@ public class DefaultUnzipMetrics implements UnzipMetrics {
         maxConcurrentTasks.set(0);
         checksumValidationCount.set(0);
         virusScanCount.set(0);
+    }
+    
+    @Override
+    public void recordProcessingTime(long time) {
+        recordUnzipTime(time);
+    }
+    
+    @Override
+    public void recordBytesProcessed(long bytes) {
+        recordUnzipSize(bytes);
+    }
+    
+    @Override
+    public void recordFilesProcessed(int count) {
+        recordFileCount(count);
+    }
+    
+    @Override
+    public void updatePeakMemoryUsage() {
+        Runtime runtime = Runtime.getRuntime();
+        recordPeakMemoryUsage(runtime.totalMemory() - runtime.freeMemory());
+    }
+    
+    @Override
+    public Map<String, Object> getMetrics() {
+        UnzipMetricsSnapshot snapshot = getSnapshot();
+        Map<String, Object> metrics = new HashMap<>();
+        metrics.put("totalUnzipTime", snapshot.getTotalUnzipTime());
+        metrics.put("totalUnzipSize", snapshot.getTotalUnzipSize());
+        metrics.put("totalFiles", snapshot.getTotalFiles());
+        metrics.put("errorCount", snapshot.getErrorCount());
+        metrics.put("successCount", snapshot.getSuccessCount());
+        metrics.put("peakMemoryUsage", snapshot.getPeakMemoryUsage());
+        metrics.put("averageUnzipSpeed", snapshot.getAverageUnzipSpeed());
+        metrics.put("maxConcurrentTasks", snapshot.getMaxConcurrentTasks());
+        return metrics;
     }
 } 
