@@ -1,0 +1,15 @@
+# IDE
+.vscode/
+.idea/
+
+# Build
+target/
+*.class
+*.jar
+
+# Logs
+*.log
+
+# Temp files
+*.tmp
+temp_* 
