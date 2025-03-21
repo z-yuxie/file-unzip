@@ -1,9 +1,7 @@
 package com.example.fileunzip.strategy.impl;
 
 import com.example.fileunzip.callback.UnzipProgressCallback;
-import com.example.fileunzip.config.SecurityConfig;
 import com.example.fileunzip.config.UnzipConfig;
-import com.example.fileunzip.exception.UnzipErrorCode;
 import com.example.fileunzip.exception.UnzipException;
 import com.example.fileunzip.model.FileInfo;
 import com.example.fileunzip.strategy.UnzipStrategy;
@@ -27,89 +25,154 @@ import java.util.concurrent.atomic.AtomicLong;
 public abstract class AbstractArchiveUnzipStrategy implements UnzipStrategy {
     
     protected final UnzipConfig unzipConfig;
-    protected final SecurityConfig securityConfig;
-    protected File tempFile;
-    protected IInArchive archive;
-    protected ExecutorService executorService;
     
-    // 添加线程池配置
-    private static final int CORE_POOL_SIZE = Runtime.getRuntime().availableProcessors();
-    private static final int MAX_POOL_SIZE = CORE_POOL_SIZE * 2;
-    private static final long KEEP_ALIVE_TIME = 60L;
-    private static final int QUEUE_CAPACITY = 1000;
-    
-    protected AbstractArchiveUnzipStrategy(UnzipConfig unzipConfig, SecurityConfig securityConfig) {
-        this.unzipConfig = unzipConfig;
-        this.securityConfig = securityConfig;
-        if (unzipConfig.isEnableConcurrentUnzip()) {
-            // 使用 ThreadPoolExecutor 替代 FixedThreadPool，提供更好的控制
-            this.executorService = new ThreadPoolExecutor(
-                CORE_POOL_SIZE,
-                MAX_POOL_SIZE,
-                KEEP_ALIVE_TIME,
-                TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(QUEUE_CAPACITY),
-                new ThreadFactory() {
-                    private final AtomicInteger threadNumber = new AtomicInteger(1);
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        Thread t = new Thread(r, "unzip-worker-" + threadNumber.getAndIncrement());
-                        t.setDaemon(true);
-                        return t;
-                    }
-                },
-                new ThreadPoolExecutor.CallerRunsPolicy()
-            );
+    /**
+     * 构造函数
+     *
+     * @param unzipConfig 解压配置
+     */
+    protected AbstractArchiveUnzipStrategy(UnzipConfig unzipConfig) {
+        if (unzipConfig == null) {
+            throw new IllegalArgumentException("解压配置不能为空");
         }
+        this.unzipConfig = unzipConfig;
     }
     
+    /**
+     * 检查是否为支持的压缩格式
+     *
+     * @param format 压缩格式
+     * @return 如果支持返回true，否则返回false
+     */
+    protected abstract boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format);
+    
+    /**
+     * 获取临时文件扩展名
+     *
+     * @return 临时文件扩展名
+     */
+    protected abstract String getTempFileExtension();
+    
+    /**
+     * 打开压缩文件
+     *
+     * @param inStream 输入流
+     * @return 压缩文件对象
+     * @throws SevenZipException 当打开失败时抛出异常
+     */
+    protected abstract IInArchive openArchive(IInStream inStream) throws SevenZipException;
+    
+    /**
+     * 获取支持的压缩格式列表
+     *
+     * @return 支持的压缩格式数组
+     */
+    @Override
+    public abstract CompressionFormatDetector.CompressionFormat[] getSupportedFormats();
+    
+    /**
+     * 解压文件
+     *
+     * @param inputStream 输入流
+     * @return 解压结果
+     * @throws UnzipException 当解压失败时抛出异常
+     */
     @Override
     public Map<FileInfo, byte[]> unzip(InputStream inputStream) throws UnzipException {
         return unzip(inputStream, null, null);
     }
     
+    /**
+     * 解压文件
+     *
+     * @param inputStream 输入流
+     * @param password 解压密码
+     * @return 解压结果
+     * @throws UnzipException 当解压失败时抛出异常
+     */
     @Override
     public Map<FileInfo, byte[]> unzip(InputStream inputStream, String password) throws UnzipException {
         return unzip(inputStream, password, null);
     }
     
+    /**
+     * 解压文件
+     *
+     * @param inputStream 输入流
+     * @param callback 进度回调
+     * @return 解压结果
+     * @throws UnzipException 当解压失败时抛出异常
+     */
     @Override
     public Map<FileInfo, byte[]> unzip(InputStream inputStream, UnzipProgressCallback callback) throws UnzipException {
         return unzip(inputStream, null, callback);
     }
     
+    /**
+     * 解压文件
+     *
+     * @param inputStream 输入流
+     * @param password 解压密码
+     * @param callback 进度回调
+     * @return 解压结果
+     * @throws UnzipException 当解压失败时抛出异常
+     */
     @Override
     public Map<FileInfo, byte[]> unzip(InputStream inputStream, String password, UnzipProgressCallback callback) throws UnzipException {
         try {
             // 创建临时文件
-            tempFile = UnzipUtils.createTempFile(inputStream, unzipConfig.getTempDirectory(), getTempFileExtension(), securityConfig);
+            File tempFile = UnzipUtils.createTempFile(inputStream, unzipConfig.getTempDirectory(), getTempFileExtension(), unzipConfig);
             
             // 打开压缩文件
-            try (RandomAccessFile randomAccessFile = new RandomAccessFile(tempFile, "r")) {
-                archive = openArchive(new RandomAccessFileInStream(randomAccessFile));
-                
-                // 获取文件总大小和数量
-                long totalSize = UnzipUtils.calculateTotalSize(archive);
-                int totalFiles;
-                try {
-                    totalFiles = archive.getNumberOfItems();
-                } catch (SevenZipException e) {
-                    throw new UnzipException(UnzipErrorCode.UNZIP_ERROR, "获取压缩文件数量失败", e);
+            IInStream inStream = new RandomAccessFileInStream(new RandomAccessFile(tempFile, "r"));
+            IInArchive archive = openArchive(inStream);
+            
+            try {
+                // 获取文件数量
+                int numberOfItems = archive.getNumberOfItems();
+                if (numberOfItems <= 0) {
+                    throw new UnzipException("压缩文件为空");
                 }
                 
-                // 通知开始解压
-                if (callback != null) {
-                    callback.onStart(totalSize, totalFiles);
+                // 检查文件数量限制
+                if (unzipConfig.isEnableFileCountCheck() && numberOfItems > unzipConfig.getMaxFileCount()) {
+                    throw new UnzipException(
+                        String.format("文件数量超过限制: %d > %d", numberOfItems, unzipConfig.getMaxFileCount()));
                 }
                 
-                Map<FileInfo, byte[]> result = new ConcurrentHashMap<>();
-                
-                if (unzipConfig.isEnableConcurrentUnzip()) {
-                    // 并发解压
-                    result = concurrentUnzip(archive, password, callback);
-                } else {
-                    // 顺序解压
-                    result = sequentialUnzip(archive, password, callback);
+                // 解压文件
+                Map<FileInfo, byte[]> result = new HashMap<>();
+                for (int i = 0; i < numberOfItems; i++) {
+                    // 获取文件路径
+                    String path = (String) archive.getProperty(i, PropID.PATH);
+                    if (path == null || path.isEmpty()) {
+                        continue;
+                    }
+                    
+                    // 安全检查
+                    UnzipUtils.validatePath(path, unzipConfig);
+                    UnzipUtils.validateFileType(path, unzipConfig);
+                    
+                    // 提取文件内容
+                    byte[] content = UnzipUtils.extractFile(archive, i, password);
+                    
+                    // 检查文件大小
+                    UnzipUtils.validateFileSize(content.length, unzipConfig);
+                    
+                    // 创建文件信息
+                    FileInfo fileInfo = FileInfo.builder()
+                        .fileName(path)
+                        .path(path)
+                        .size(content.length)
+                        .lastModified(UnzipUtils.getLastModifiedTime(archive, i))
+                        .build();
+                    
+                    result.put(fileInfo, content);
+                    
+                    // 通知进度
+                    if (callback != null) {
+                        callback.onProgress(path, content.length, content.length, i + 1, numberOfItems);
+                    }
                 }
                 
                 // 通知完成
@@ -118,203 +181,130 @@ public abstract class AbstractArchiveUnzipStrategy implements UnzipStrategy {
                 }
                 
                 return result;
+            } finally {
+                archive.close();
+                inStream.close();
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             if (callback != null) {
                 callback.onError(e.getMessage());
             }
-            throw translateException(e);
-        } finally {
-            cleanup();
+            throw new UnzipException("解压文件失败", e);
         }
     }
     
-    private Map<FileInfo, byte[]> concurrentUnzip(IInArchive archive, String password, 
-            UnzipProgressCallback callback) throws UnzipException {
-        Map<FileInfo, byte[]> result = new ConcurrentHashMap<>();
-        AtomicInteger completedFiles = new AtomicInteger(0);
-        AtomicLong processedSize = new AtomicLong(0);
-        
+    /**
+     * 并发解压文件
+     *
+     * @param inputStream 输入流
+     * @param password 解压密码
+     * @param callback 进度回调
+     * @return 解压结果
+     * @throws UnzipException 当解压失败时抛出异常
+     */
+    protected Map<FileInfo, byte[]> concurrentUnzip(InputStream inputStream, String password, UnzipProgressCallback callback) throws UnzipException {
         try {
-            int numberOfItems;
+            // 创建临时文件
+            File tempFile = UnzipUtils.createTempFile(inputStream, unzipConfig.getTempDirectory(), getTempFileExtension(), unzipConfig);
+            
+            // 打开压缩文件
+            IInStream inStream = new RandomAccessFileInStream(new RandomAccessFile(tempFile, "r"));
+            IInArchive archive = openArchive(inStream);
+            
             try {
-                numberOfItems = archive.getNumberOfItems();
-            } catch (SevenZipException e) {
-                throw new UnzipException(UnzipErrorCode.UNZIP_ERROR, "获取压缩文件数量失败", e);
-            }
-            CountDownLatch latch = new CountDownLatch(numberOfItems);
-            
-            for (int i = 0; i < numberOfItems; i++) {
-                final int index = i;
-                executorService.submit(() -> {
-                    try {
-                        String path = archive.getStringProperty(index, PropID.PATH);
-                        if (path == null || path.isEmpty()) {
-                            return;
-                        }
-                        
-                        Boolean isFolder = (Boolean) archive.getProperty(index, PropID.IS_FOLDER);
-                        if (isFolder != null && isFolder) {
-                            return;
-                        }
-                        
-                        // 安全检查
-                        UnzipUtils.validatePath(path, securityConfig);
-                        UnzipUtils.validateFileType(path, securityConfig);
-                        
-                        // 提取文件
-                        byte[] content = UnzipUtils.extractFile(archive, index, password);
-                        
-                        // 安全检查
-                        UnzipUtils.validateFileSize(content.length, securityConfig);
-                        
-                        // 创建文件信息
-                        FileInfo fileInfo = FileInfo.builder()
-                            .fileName(FilenameUtils.getName(path))
-                            .path(path)
-                            .size(content.length)
-                            .lastModified(UnzipUtils.getLastModifiedTime(archive, index))
-                            .build();
-                        
-                        result.put(fileInfo, content);
-                        
-                        // 更新进度
-                        processedSize.addAndGet(content.length);
-                        completedFiles.incrementAndGet();
-                        
-                        if (callback != null) {
-                            try {
-                                Long size = (Long) archive.getProperty(index, PropID.SIZE);
-                                callback.onProgress(path, processedSize.get(), 
-                                    size != null ? size : 0L,
-                                    completedFiles.get(), numberOfItems);
-                            } catch (SevenZipException e) {
-                                log.warn("获取文件大小失败: {}", e.getMessage());
-                                callback.onProgress(path, processedSize.get(), 0L,
-                                    completedFiles.get(), numberOfItems);
+                // 获取文件数量
+                int numberOfItems = archive.getNumberOfItems();
+                if (numberOfItems <= 0) {
+                    throw new UnzipException("压缩文件为空");
+                }
+                
+                // 检查文件数量限制
+                if (unzipConfig.isEnableFileCountCheck() && numberOfItems > unzipConfig.getMaxFileCount()) {
+                    throw new UnzipException(
+                        String.format("文件数量超过限制: %d > %d", numberOfItems, unzipConfig.getMaxFileCount()));
+                }
+                
+                // 创建线程池
+                ExecutorService executorService = Executors.newFixedThreadPool(unzipConfig.getConcurrentThreads());
+                
+                try {
+                    // 创建任务列表
+                    List<Future<Map.Entry<FileInfo, byte[]>>> futures = new ArrayList<>();
+                    
+                    // 提交任务
+                    for (int i = 0; i < numberOfItems; i++) {
+                        final int index = i;
+                        futures.add(executorService.submit(() -> {
+                            // 获取文件路径
+                            String path = (String) archive.getProperty(index, PropID.PATH);
+                            if (path == null || path.isEmpty()) {
+                                return null;
                             }
-                        }
-                    } catch (Exception e) {
-                        log.error("解压文件失败: {}", e.getMessage(), e);
-                    } finally {
-                        latch.countDown();
+                            
+                            // 安全检查
+                            UnzipUtils.validatePath(path, unzipConfig);
+                            UnzipUtils.validateFileType(path, unzipConfig);
+                            
+                            // 提取文件内容
+                            byte[] content = UnzipUtils.extractFile(archive, index, password);
+                            
+                            // 检查文件大小
+                            UnzipUtils.validateFileSize(content.length, unzipConfig);
+                            
+                            // 创建文件信息
+                            FileInfo fileInfo = FileInfo.builder()
+                                .fileName(path)
+                                .path(path)
+                                .size(content.length)
+                                .lastModified(UnzipUtils.getLastModifiedTime(archive, index))
+                                .build();
+                            
+                            return new AbstractMap.SimpleEntry<>(fileInfo, content);
+                        }));
                     }
-                });
+                    
+                    // 收集结果
+                    Map<FileInfo, byte[]> result = new HashMap<>();
+                    for (int i = 0; i < futures.size(); i++) {
+                        Future<Map.Entry<FileInfo, byte[]>> future = futures.get(i);
+                        try {
+                            Map.Entry<FileInfo, byte[]> entry = future.get(unzipConfig.getUnzipTimeout(), TimeUnit.MILLISECONDS);
+                            if (entry != null) {
+                                result.put(entry.getKey(), entry.getValue());
+                                
+                                // 通知进度
+                                if (callback != null) {
+                                    callback.onProgress(entry.getKey().getPath(), entry.getValue().length, entry.getValue().length, i + 1, numberOfItems);
+                                }
+                            }
+                        } catch (Exception e) {
+                            throw new UnzipException("解压文件失败", e);
+                        }
+                    }
+                    
+                    // 通知完成
+                    if (callback != null) {
+                        callback.onComplete();
+                    }
+                    
+                    return result;
+                } finally {
+                    executorService.shutdown();
+                }
+            } finally {
+                archive.close();
+                inStream.close();
             }
-            
-            // 等待所有任务完成
-            if (!latch.await(unzipConfig.getUnzipTimeout(), TimeUnit.MILLISECONDS)) {
-                throw new UnzipException(UnzipErrorCode.TIMEOUT_ERROR, "解压超时");
+        } catch (IOException e) {
+            if (callback != null) {
+                callback.onError(e.getMessage());
             }
-            
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new UnzipException(UnzipErrorCode.INTERRUPTED_ERROR, "解压被中断");
+            throw new UnzipException("解压文件失败", e);
         }
-        
-        return result;
     }
-    
-    private Map<FileInfo, byte[]> sequentialUnzip(IInArchive archive, String password, UnzipProgressCallback callback) throws UnzipException {
-        Map<FileInfo, byte[]> result = new HashMap<>();
-        
-        try {
-            for (int i = 0; i < archive.getNumberOfItems(); i++) {
-                String path = archive.getStringProperty(i, PropID.PATH);
-                if (path == null || path.isEmpty()) {
-                    continue;
-                }
-                
-                Boolean isFolder = (Boolean) archive.getProperty(i, PropID.IS_FOLDER);
-                if (isFolder != null && isFolder) {
-                    continue;
-                }
-                
-                // 安全检查
-                UnzipUtils.validatePath(path, securityConfig);
-                UnzipUtils.validateFileType(path, securityConfig);
-                
-                // 提取文件
-                byte[] content = UnzipUtils.extractFile(archive, i, password);
-                
-                // 安全检查
-                UnzipUtils.validateFileSize(content.length, securityConfig);
-                
-                // 创建文件信息
-                FileInfo fileInfo = FileInfo.builder()
-                    .fileName(FilenameUtils.getName(path))
-                    .path(path)
-                    .size(content.length)
-                    .lastModified(UnzipUtils.getLastModifiedTime(archive, i))
-                    .build();
-                
-                result.put(fileInfo, content);
-                
-                // 通知进度
-                if (callback != null) {
-                    callback.onFileComplete(path, i + 1, archive.getNumberOfItems());
-                }
-            }
-        } catch (SevenZipException e) {
-            throw new UnzipException(UnzipErrorCode.UNZIP_ERROR, "解压失败: " + e.getMessage(), e);
-        }
-        
-        return result;
-    }
-    
+
     @Override
     public void close() throws IOException {
-        cleanup();
-        if (executorService != null) {
-            executorService.shutdown();
-            try {
-                if (!executorService.awaitTermination(60, TimeUnit.SECONDS)) {
-                    executorService.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                executorService.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-        }
-    }
-    
-    protected abstract IInArchive openArchive(IInStream inStream) throws SevenZipException;
-    
-    protected abstract boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format);
-    
-    protected abstract String getTempFileExtension();
-    
-    private void cleanup() {
-        if (archive != null) {
-            try {
-                archive.close();
-            } catch (SevenZipException e) {
-                log.warn("关闭压缩文件失败", e);
-            }
-            archive = null;
-        }
-        
-        if (tempFile != null && tempFile.exists()) {
-            if (!tempFile.delete()) {
-                tempFile.deleteOnExit();
-            }
-            tempFile = null;
-        }
-    }
-    
-    protected UnzipException translateException(Exception e) {
-        if (e instanceof UnzipException) {
-            return (UnzipException) e;
-        }
-        
-        if (e instanceof SevenZipException) {
-            return new UnzipException(UnzipErrorCode.UNZIP_ERROR, "解压失败: " + e.getMessage(), e);
-        }
-        
-        if (e instanceof IOException) {
-            return new UnzipException(UnzipErrorCode.IO_ERROR, "IO错误: " + e.getMessage(), e);
-        }
-        
-        return new UnzipException(UnzipErrorCode.UNKNOWN_ERROR, "未知错误: " + e.getMessage(), e);
+        // 不需要额外的清理工作
     }
 } 

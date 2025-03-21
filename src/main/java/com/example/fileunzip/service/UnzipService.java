@@ -1,7 +1,6 @@
 package com.example.fileunzip.service;
 
 import com.example.fileunzip.callback.UnzipProgressCallback;
-import com.example.fileunzip.config.SecurityConfig;
 import com.example.fileunzip.config.UnzipConfig;
 import com.example.fileunzip.exception.UnzipErrorCode;
 import com.example.fileunzip.exception.UnzipException;
@@ -13,8 +12,14 @@ import com.example.fileunzip.util.CompressionFormatDetector;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 
 /**
@@ -37,16 +42,13 @@ import java.util.Map;
 public class UnzipService {
     
     private final UnzipStrategyFactory strategyFactory;
-    private final SecurityConfig securityConfig;
     private final UnzipConfig unzipConfig;
     private final UnzipMetrics metrics;
     
     public UnzipService(UnzipStrategyFactory strategyFactory,
-                       SecurityConfig securityConfig,
                        UnzipConfig unzipConfig,
                        UnzipMetrics metrics) {
         this.strategyFactory = strategyFactory;
-        this.securityConfig = securityConfig;
         this.unzipConfig = unzipConfig;
         this.metrics = metrics;
     }
@@ -161,15 +163,122 @@ public class UnzipService {
      */
     private void validateSecurity(byte[] data) throws UnzipException {
         // 文件大小检查
-        if (securityConfig.isFileSizeCheckEnabled() && data.length > securityConfig.getMaxFileSize()) {
-            throw new UnzipException(UnzipErrorCode.FILE_TOO_LARGE, 
-                String.format("文件大小超过限制: %d > %d", data.length, securityConfig.getMaxFileSize()));
-        }
-        
-        // 文件大小检查
         if (data.length > unzipConfig.getMaxFileSize()) {
             throw new UnzipException(UnzipErrorCode.FILE_TOO_LARGE,
                 String.format("文件大小超过限制: %d > %d", data.length, unzipConfig.getMaxFileSize()));
+        }
+    }
+    
+    /**
+     * 解压文件到内存
+     */
+    public Map<FileInfo, byte[]> unzip(InputStream inputStream, String password, UnzipProgressCallback callback) throws UnzipException {
+        return unzipInternal(inputStream, password, callback, null);
+    }
+    
+    /**
+     * 解压文件到指定目录
+     */
+    public Map<FileInfo, byte[]> unzip(InputStream inputStream, String password, UnzipProgressCallback callback, String targetPath) throws UnzipException {
+        return unzipInternal(inputStream, password, callback, targetPath);
+    }
+    
+    /**
+     * 内部解压方法，处理共同的解压逻辑
+     */
+    private Map<FileInfo, byte[]> unzipInternal(InputStream inputStream, String password, UnzipProgressCallback callback, String targetPath) throws UnzipException {
+        // 参数验证
+        if (inputStream == null) {
+            throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "输入流不能为空");
+        }
+        
+        // 读取输入流数据
+        byte[] data;
+        try {
+            data = readInputStream(inputStream);
+        } catch (IOException e) {
+            throw new UnzipException(UnzipErrorCode.IO_ERROR, "读取输入流失败", e);
+        }
+        
+        // 检测压缩格式
+        CompressionFormatDetector.CompressionFormat format = CompressionFormatDetector.detect(data);
+        if (format == null) {
+            throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "无法识别的压缩格式");
+        }
+        
+        // 获取解压策略
+        UnzipStrategy strategy = strategyFactory.getStrategy(format);
+        if (strategy == null) {
+            throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "不支持的压缩格式: " + format);
+        }
+        
+        try {
+            // 执行解压
+            Map<FileInfo, byte[]> result = strategy.unzip(inputStream, password, callback);
+            
+            // 如果指定了目标路径，将文件写入磁盘
+            if (targetPath != null && !targetPath.trim().isEmpty()) {
+                writeFilesToDisk(result, targetPath);
+            }
+            
+            return result;
+        } catch (Exception e) {
+            log.error("解压失败: {}", e.getMessage(), e);
+            if (callback != null) {
+                callback.onError(e.getMessage());
+            }
+            throw new UnzipException(UnzipErrorCode.IO_ERROR, "解压失败: " + e.getMessage(), e);
+        } finally {
+            try {
+                strategy.close();
+            } catch (IOException e) {
+                log.warn("关闭解压策略失败: {}", e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * 读取输入流数据
+     */
+    private byte[] readInputStream(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] buffer = new byte[unzipConfig.getBufferSize()];
+        int bytesRead;
+        
+        while ((bytesRead = inputStream.read(buffer)) != -1) {
+            outputStream.write(buffer, 0, bytesRead);
+        }
+        
+        return outputStream.toByteArray();
+    }
+    
+    /**
+     * 将解压后的文件写入磁盘
+     */
+    private void writeFilesToDisk(Map<FileInfo, byte[]> files, String targetPath) throws UnzipException {
+        try {
+            // 创建目标目录
+            Path targetDir = Paths.get(targetPath);
+            Files.createDirectories(targetDir);
+            
+            // 写入文件
+            for (Map.Entry<FileInfo, byte[]> entry : files.entrySet()) {
+                FileInfo fileInfo = entry.getKey();
+                byte[] content = entry.getValue();
+                
+                // 构建目标文件路径
+                Path targetFile = targetDir.resolve(fileInfo.getPath());
+                
+                // 创建父目录
+                Files.createDirectories(targetFile.getParent());
+                
+                // 写入文件内容
+                try (FileOutputStream fos = new FileOutputStream(targetFile.toFile())) {
+                    fos.write(content);
+                }
+            }
+        } catch (IOException e) {
+            throw new UnzipException(UnzipErrorCode.IO_ERROR, "写入文件失败: " + e.getMessage(), e);
         }
     }
 } 

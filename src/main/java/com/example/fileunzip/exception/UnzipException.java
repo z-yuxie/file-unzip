@@ -2,40 +2,88 @@ package com.example.fileunzip.exception;
 
 /**
  * 解压异常类
+ * 用于表示解压过程中发生的异常
  */
 public class UnzipException extends Exception {
-    private final UnzipErrorCode errorCode;
-    private final String details;
-
-    public UnzipException(UnzipErrorCode errorCode) {
-        super(errorCode.getMessage());
-        this.errorCode = errorCode;
-        this.details = null;
+    
+    /**
+     * 错误码
+     */
+    private final String errorCode;
+    
+    /**
+     * 构造一个新的解压异常
+     *
+     * @param message 错误信息
+     */
+    public UnzipException(String message) {
+        super(message);
+        this.errorCode = "UNZIP_ERROR";
     }
-
-    public UnzipException(UnzipErrorCode errorCode, String details) {
-        super(errorCode.getMessage() + ": " + details);
-        this.errorCode = errorCode;
-        this.details = details;
+    
+    /**
+     * 构造一个新的解压异常
+     *
+     * @param message 错误信息
+     * @param cause 导致此异常的原始异常
+     */
+    public UnzipException(String message, Throwable cause) {
+        super(message, cause);
+        this.errorCode = "UNZIP_ERROR";
     }
-
-    public UnzipException(UnzipErrorCode errorCode, Throwable cause) {
-        super(errorCode.getMessage(), cause);
+    
+    /**
+     * 构造一个新的解压异常
+     *
+     * @param message 错误信息
+     * @param errorCode 错误码
+     */
+    public UnzipException(String message, String errorCode) {
+        super(message);
         this.errorCode = errorCode;
-        this.details = null;
     }
-
-    public UnzipException(UnzipErrorCode errorCode, String details, Throwable cause) {
-        super(errorCode.getMessage() + ": " + details, cause);
+    
+    /**
+     * 构造一个新的解压异常
+     *
+     * @param message 错误信息
+     * @param cause 导致此异常的原始异常
+     * @param errorCode 错误码
+     */
+    public UnzipException(String message, Throwable cause, String errorCode) {
+        super(message, cause);
         this.errorCode = errorCode;
-        this.details = details;
     }
-
-    public UnzipErrorCode getErrorCode() {
+    
+    /**
+     * 构造一个新的解压异常
+     *
+     * @param errorCode 错误码枚举
+     * @param message 错误信息
+     */
+    public UnzipException(UnzipErrorCode errorCode, String message) {
+        super(message);
+        this.errorCode = errorCode.getCode();
+    }
+    
+    /**
+     * 构造一个新的解压异常
+     *
+     * @param errorCode 错误码枚举
+     * @param message 错误信息
+     * @param cause 导致此异常的原始异常
+     */
+    public UnzipException(UnzipErrorCode errorCode, String message, Throwable cause) {
+        super(message, cause);
+        this.errorCode = errorCode.getCode();
+    }
+    
+    /**
+     * 获取错误码
+     *
+     * @return 错误码
+     */
+    public String getErrorCode() {
         return errorCode;
-    }
-
-    public String getDetails() {
-        return details;
     }
 } 

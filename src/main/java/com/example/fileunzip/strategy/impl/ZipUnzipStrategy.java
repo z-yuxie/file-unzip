@@ -1,33 +1,21 @@
 package com.example.fileunzip.strategy.impl;
 
-import com.example.fileunzip.config.SecurityConfig;
 import com.example.fileunzip.config.UnzipConfig;
-import com.example.fileunzip.model.FileInfo;
-import com.example.fileunzip.strategy.UnzipStrategy;
 import com.example.fileunzip.util.CompressionFormatDetector;
 import net.sf.sevenzipjbinding.*;
-import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 /**
- * ZIP格式解压策略
+ * ZIP格式解压策略实现类
  */
 public class ZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
     
-    public ZipUnzipStrategy(UnzipConfig unzipConfig, SecurityConfig securityConfig) {
-        super(unzipConfig, securityConfig);
-    }
-    
-    @Override
-    protected IInArchive openArchive(IInStream inStream) throws SevenZipException {
-        return SevenZip.openInArchive(ArchiveFormat.ZIP, inStream);
+    /**
+     * 构造函数
+     *
+     * @param unzipConfig 解压配置
+     */
+    public ZipUnzipStrategy(UnzipConfig unzipConfig) {
+        super(unzipConfig);
     }
     
     @Override
@@ -39,10 +27,15 @@ public class ZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
     protected String getTempFileExtension() {
         return ".zip";
     }
-
+    
+    @Override
+    protected IInArchive openArchive(IInStream inStream) throws SevenZipException {
+        return SevenZip.openInArchive(ArchiveFormat.ZIP, inStream);
+    }
+    
     @Override
     public CompressionFormatDetector.CompressionFormat[] getSupportedFormats() {
-        return new CompressionFormatDetector.CompressionFormat[]{
+        return new CompressionFormatDetector.CompressionFormat[] {
             CompressionFormatDetector.CompressionFormat.ZIP
         };
     }

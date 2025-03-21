@@ -1,21 +1,14 @@
 package com.example.fileunzip.strategy.impl;
 
 import com.example.fileunzip.callback.UnzipProgressCallback;
-import com.example.fileunzip.config.SecurityConfig;
 import com.example.fileunzip.config.UnzipConfig;
 import com.example.fileunzip.exception.UnzipException;
 import com.example.fileunzip.model.FileInfo;
 import com.example.fileunzip.util.CompressionFormatDetector;
 import net.sf.sevenzipjbinding.*;
-import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.RandomAccessFile;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -29,8 +22,13 @@ import java.util.Map;
  */
 public class TarUnzipStrategy extends AbstractArchiveUnzipStrategy {
 
-    public TarUnzipStrategy(UnzipConfig unzipConfig, SecurityConfig securityConfig) {
-        super(unzipConfig, securityConfig);
+    /**
+     * 构造函数
+     *
+     * @param unzipConfig 解压配置
+     */
+    public TarUnzipStrategy(UnzipConfig unzipConfig) {
+        super(unzipConfig);
     }
 
     @Override

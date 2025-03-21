@@ -1,16 +1,8 @@
 package com.example.fileunzip.strategy.impl;
 
-import com.example.fileunzip.config.SecurityConfig;
 import com.example.fileunzip.config.UnzipConfig;
-import com.example.fileunzip.exception.UnzipException;
-import com.example.fileunzip.model.FileInfo;
 import com.example.fileunzip.util.CompressionFormatDetector;
 import net.sf.sevenzipjbinding.*;
-import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
-
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.util.Map;
 
 /**
  * RAR格式解压策略实现类
@@ -26,8 +18,13 @@ import java.util.Map;
  */
 public class RarUnzipStrategy extends AbstractArchiveUnzipStrategy {
     
-    public RarUnzipStrategy(UnzipConfig unzipConfig, SecurityConfig securityConfig) {
-        super(unzipConfig, securityConfig);
+    /**
+     * 构造函数
+     *
+     * @param unzipConfig 解压配置
+     */
+    public RarUnzipStrategy(UnzipConfig unzipConfig) {
+        super(unzipConfig);
     }
 
     @Override

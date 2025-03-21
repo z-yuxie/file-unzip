@@ -1,7 +1,6 @@
 package com.example.fileunzip.strategy.impl;
 
 import com.example.fileunzip.callback.UnzipProgressCallback;
-import com.example.fileunzip.config.SecurityConfig;
 import com.example.fileunzip.config.UnzipConfig;
 import com.example.fileunzip.exception.UnzipErrorCode;
 import com.example.fileunzip.exception.UnzipException;
@@ -11,7 +10,6 @@ import com.example.fileunzip.util.UnzipUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
-import org.apache.commons.io.FilenameUtils;
 import net.sf.sevenzipjbinding.*;
 
 import java.io.ByteArrayOutputStream;
@@ -37,17 +35,13 @@ public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
     /**
      * 构造函数
      *
-     * @param format 压缩格式（GZIP、BZIP2、XZ、LZMA）
+     * @param format 压缩格式
+     * @param unzipConfig 解压配置
      */
-    public CompressedFileUnzipStrategy(CompressionFormatDetector.CompressionFormat format,
-                                     UnzipConfig unzipConfig,
-                                     SecurityConfig securityConfig) {
-        super(unzipConfig, securityConfig);
+    public CompressedFileUnzipStrategy(CompressionFormatDetector.CompressionFormat format, UnzipConfig unzipConfig) {
+        super(unzipConfig);
         if (format == null) {
             throw new IllegalArgumentException("压缩格式不能为空");
-        }
-        if (!isSupportedCompressionFormat(format)) {
-            throw new IllegalArgumentException("不支持的压缩格式: " + format);
         }
         this.format = format;
     }
@@ -69,12 +63,12 @@ public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
 
     @Override
     protected String getTempFileExtension() {
-        return getDefaultExtension();
+        return "." + format.name().toLowerCase();
     }
 
     @Override
     protected IInArchive openArchive(IInStream inStream) throws SevenZipException {
-        throw new UnsupportedOperationException("单文件压缩格式不支持通过7-Zip-JBinding处理");
+        return SevenZip.openInArchive(null, inStream);
     }
 
     @Override
@@ -106,7 +100,7 @@ public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
             
             while ((bytesRead = compressorInputStream.read(buffer)) != -1) {
                 totalBytesRead += bytesRead;
-                UnzipUtils.validateFileSize(totalBytesRead, securityConfig);
+                UnzipUtils.validateFileSize(totalBytesRead, unzipConfig);
                 outputStream.write(buffer, 0, bytesRead);
                 
                 // 通知进度
@@ -162,7 +156,7 @@ public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
 
     @Override
     public CompressionFormatDetector.CompressionFormat[] getSupportedFormats() {
-        return new CompressionFormatDetector.CompressionFormat[]{format};
+        return new CompressionFormatDetector.CompressionFormat[] { format };
     }
     
     /**

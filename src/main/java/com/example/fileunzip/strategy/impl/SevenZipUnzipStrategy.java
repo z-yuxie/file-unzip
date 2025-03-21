@@ -1,14 +1,9 @@
 package com.example.fileunzip.strategy.impl;
 
-import com.example.fileunzip.config.SecurityConfig;
 import com.example.fileunzip.config.UnzipConfig;
 import com.example.fileunzip.util.CompressionFormatDetector;
 import net.sf.sevenzipjbinding.*;
-import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
 import net.sf.sevenzipjbinding.SevenZipException;
-
-import java.io.IOException;
-import java.io.RandomAccessFile;
 
 /**
  * 7Z格式解压策略实现类
@@ -24,8 +19,13 @@ import java.io.RandomAccessFile;
  */
 public class SevenZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
     
-    public SevenZipUnzipStrategy(UnzipConfig unzipConfig, SecurityConfig securityConfig) {
-        super(unzipConfig, securityConfig);
+    /**
+     * 构造函数
+     *
+     * @param unzipConfig 解压配置
+     */
+    public SevenZipUnzipStrategy(UnzipConfig unzipConfig) {
+        super(unzipConfig);
     }
     
     @Override
