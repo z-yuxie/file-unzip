@@ -8,12 +8,12 @@ import com.example.fileunzip.monitor.UnzipMetrics;
 import com.example.fileunzip.model.FileInfo;
 import com.example.fileunzip.strategy.UnzipStrategy;
 import com.example.fileunzip.strategy.UnzipStrategyFactory;
-import com.example.fileunzip.util.CompressionFormatDetector;
+import com.example.fileunzip.format.CompressionFormat;
+import com.example.fileunzip.format.CompressionFormatDetector;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,46 +61,7 @@ public class UnzipService {
      * @throws UnzipException 解压异常
      */
     public Map<FileInfo, byte[]> unzip(byte[] data) throws UnzipException {
-        if (data == null || data.length == 0) {
-            throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "压缩文件数据不能为空");
-        }
-        
-        // 安全检查
-        validateSecurity(data);
-        
-        log.info("开始解压文件，数据大小: {} 字节", data.length);
-        long startTime = System.currentTimeMillis();
-        
-        try {
-            // 检测压缩格式
-            CompressionFormatDetector.CompressionFormat format = CompressionFormatDetector.detect(data);
-            if (format == CompressionFormatDetector.CompressionFormat.UNKNOWN) {
-                throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "无法识别的压缩格式");
-            }
-            
-            // 获取对应的解压策略
-            UnzipStrategy strategy = strategyFactory.getStrategy(format);
-            
-            // 创建输入流
-            try (InputStream inputStream = new ByteArrayInputStream(data)) {
-                // 执行解压
-                Map<FileInfo, byte[]> result = strategy.unzip(inputStream);
-                
-                // 记录指标
-                long endTime = System.currentTimeMillis();
-                metrics.recordUnzipTime(endTime - startTime);
-                metrics.recordUnzipSize(data.length);
-                metrics.recordFileCount(result.size());
-                metrics.recordSuccess();
-                
-                log.info("文件解压完成，共解压 {} 个文件", result.size());
-                return result;
-            }
-        } catch (Exception e) {
-            metrics.recordError(UnzipErrorCode.IO_ERROR);
-            log.error("文件解压失败", e);
-            throw new UnzipException(UnzipErrorCode.IO_ERROR, "文件解压失败: " + e.getMessage(), e);
-        }
+        return unzipInternal(data, null);
     }
     
     /**
@@ -115,7 +76,18 @@ public class UnzipService {
         if (!unzipConfig.isEnableProgressCallback()) {
             return unzip(data);
         }
-        
+        return unzipInternal(data, callback);
+    }
+    
+    /**
+     * 内部解压方法，处理公共的解压逻辑
+     *
+     * @param data 压缩文件数据
+     * @param callback 进度回调（可选）
+     * @return 解压后的文件信息及其内容
+     * @throws UnzipException 解压异常
+     */
+    private Map<FileInfo, byte[]> unzipInternal(byte[] data, UnzipProgressCallback callback) throws UnzipException {
         if (data == null || data.length == 0) {
             throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "压缩文件数据不能为空");
         }
@@ -128,29 +100,32 @@ public class UnzipService {
         
         try {
             // 检测压缩格式
-            CompressionFormatDetector.CompressionFormat format = CompressionFormatDetector.detect(data);
-            if (format == CompressionFormatDetector.CompressionFormat.UNKNOWN) {
+            CompressionFormat format = CompressionFormatDetector.detect(data);
+            if (format == CompressionFormat.UNKNOWN) {
                 throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "无法识别的压缩格式");
             }
             
             // 获取对应的解压策略
             UnzipStrategy strategy = strategyFactory.getStrategy(format);
             
-            // 创建输入流
+            // 创建输入流并执行解压
+            Map<FileInfo, byte[]> result;
             try (InputStream inputStream = new ByteArrayInputStream(data)) {
-                // 执行解压
-                Map<FileInfo, byte[]> result = strategy.unzip(inputStream, callback);
-                
-                // 记录指标
-                long endTime = System.currentTimeMillis();
-                metrics.recordUnzipTime(endTime - startTime);
-                metrics.recordUnzipSize(data.length);
-                metrics.recordFileCount(result.size());
-                metrics.recordSuccess();
-                
-                log.info("文件解压完成，共解压 {} 个文件", result.size());
-                return result;
+                result = callback != null ? 
+                    strategy.unzip(inputStream, callback) : 
+                    strategy.unzip(inputStream);
             }
+            
+            // 记录指标
+            long endTime = System.currentTimeMillis();
+            metrics.recordUnzipTime(endTime - startTime);
+            metrics.recordUnzipSize(data.length);
+            metrics.recordFileCount(result.size());
+            metrics.recordSuccess();
+            
+            log.info("文件解压完成，共解压 {} 个文件", result.size());
+            return result;
+            
         } catch (Exception e) {
             metrics.recordError(UnzipErrorCode.IO_ERROR);
             log.error("文件解压失败", e);
@@ -201,7 +176,7 @@ public class UnzipService {
         }
         
         // 检测压缩格式
-        CompressionFormatDetector.CompressionFormat format = CompressionFormatDetector.detect(data);
+        CompressionFormat format = CompressionFormatDetector.detect(data);
         if (format == null) {
             throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "无法识别的压缩格式");
         }

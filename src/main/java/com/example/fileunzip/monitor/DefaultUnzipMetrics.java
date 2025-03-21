@@ -10,19 +10,48 @@ import java.util.HashMap;
 
 /**
  * 默认解压监控实现
+ * 使用原子类实现线程安全的指标收集，包括：
+ * 1. 解压时间和大小统计
+ * 2. 文件数量统计
+ * 3. 错误和成功计数
+ * 4. 内存使用监控
+ * 5. 解压速度计算
+ * 6. 并发任务统计
+ * 7. 安全验证统计
  */
 @Slf4j
 public class DefaultUnzipMetrics implements UnzipMetrics {
+    /** 总解压时间（毫秒） */
     private final AtomicLong totalUnzipTime = new AtomicLong(0);
+    
+    /** 总解压大小（字节） */
     private final AtomicLong totalUnzipSize = new AtomicLong(0);
+    
+    /** 总文件数量 */
     private final AtomicInteger totalFiles = new AtomicInteger(0);
+    
+    /** 错误计数 */
     private final AtomicInteger errorCount = new AtomicInteger(0);
+    
+    /** 成功计数 */
     private final AtomicInteger successCount = new AtomicInteger(0);
+    
+    /** 峰值内存使用量（字节） */
     private final AtomicLong peakMemoryUsage = new AtomicLong(0);
+    
+    /** 总解压速度（字节/秒） */
     private final AtomicLong totalUnzipSpeed = new AtomicLong(0);
+    
+    /** 速度采样次数 */
     private final AtomicInteger speedCount = new AtomicInteger(0);
+    
+    /** 最大并发任务数 */
     private final AtomicInteger maxConcurrentTasks = new AtomicInteger(0);
+    
+    /** 校验和验证成功次数 */
     private final AtomicInteger checksumValidationCount = new AtomicInteger(0);
+    
+    /** 病毒扫描通过次数 */
     private final AtomicInteger virusScanCount = new AtomicInteger(0);
     
     @Override

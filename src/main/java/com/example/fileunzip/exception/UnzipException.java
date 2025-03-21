@@ -1,13 +1,21 @@
 package com.example.fileunzip.exception;
 
+import lombok.Getter;
+
 /**
  * 解压异常类
  * 用于表示解压过程中发生的异常
  */
+@Getter
 public class UnzipException extends Exception {
     
     /**
      * 错误码
+     * -- GETTER --
+     *  获取错误码
+     *
+     * @return 错误码
+
      */
     private final String errorCode;
     
@@ -77,13 +85,5 @@ public class UnzipException extends Exception {
         super(message, cause);
         this.errorCode = errorCode.getCode();
     }
-    
-    /**
-     * 获取错误码
-     *
-     * @return 错误码
-     */
-    public String getErrorCode() {
-        return errorCode;
-    }
+
 } 

@@ -1,7 +1,8 @@
 package com.example.fileunzip.strategy.impl;
 
 import com.example.fileunzip.config.UnzipConfig;
-import com.example.fileunzip.util.CompressionFormatDetector;
+import com.example.fileunzip.format.CompressionFormat;
+import com.example.fileunzip.format.CompressionFormatDetector;
 import net.sf.sevenzipjbinding.*;
 
 /**
@@ -28,8 +29,8 @@ public class RarUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
 
     @Override
-    protected boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format) {
-        return format == CompressionFormatDetector.CompressionFormat.RAR;
+    protected boolean isSupportedFormat(CompressionFormat format) {
+        return format == CompressionFormat.RAR;
     }
 
     @Override
@@ -43,9 +44,7 @@ public class RarUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
 
     @Override
-    public CompressionFormatDetector.CompressionFormat[] getSupportedFormats() {
-        return new CompressionFormatDetector.CompressionFormat[]{
-            CompressionFormatDetector.CompressionFormat.RAR
-        };
+    public CompressionFormat[] getSupportedFormats() {
+        return new CompressionFormat[]{CompressionFormat.RAR};
     }
 } 

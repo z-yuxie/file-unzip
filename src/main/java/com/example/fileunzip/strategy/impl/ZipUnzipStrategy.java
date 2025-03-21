@@ -1,11 +1,12 @@
 package com.example.fileunzip.strategy.impl;
 
 import com.example.fileunzip.config.UnzipConfig;
-import com.example.fileunzip.util.CompressionFormatDetector;
+import com.example.fileunzip.format.CompressionFormat;
+import com.example.fileunzip.format.CompressionFormatDetector;
 import net.sf.sevenzipjbinding.*;
 
 /**
- * ZIP格式解压策略实现类
+ * ZIP格式解压策略
  */
 public class ZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
     
@@ -19,8 +20,8 @@ public class ZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
     
     @Override
-    protected boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format) {
-        return format == CompressionFormatDetector.CompressionFormat.ZIP;
+    protected boolean isSupportedFormat(CompressionFormat format) {
+        return format == CompressionFormat.ZIP;
     }
     
     @Override
@@ -34,9 +35,7 @@ public class ZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
     
     @Override
-    public CompressionFormatDetector.CompressionFormat[] getSupportedFormats() {
-        return new CompressionFormatDetector.CompressionFormat[] {
-            CompressionFormatDetector.CompressionFormat.ZIP
-        };
+    public CompressionFormat[] getSupportedFormats() {
+        return new CompressionFormat[]{CompressionFormat.ZIP};
     }
 } 

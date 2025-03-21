@@ -12,14 +12,32 @@ import java.util.Properties;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+/**
+ * 解压配置管理器
+ * 负责管理解压配置的加载、保存和更新，采用单例模式实现
+ * 支持配置变更通知机制，可以注册监听器来响应配置变更
+ */
 @Slf4j
 public class UnzipConfigManager {
+    /** 单例实例 */
     private static volatile UnzipConfigManager instance;
+    
+    /** 当前配置 */
     private UnzipConfig config;
+    
+    /** 配置读写锁 */
     private final ReadWriteLock configLock;
+    
+    /** 配置文件路径 */
     private final String configFile;
+    
+    /** 配置变更监听器列表 */
     private final List<UnzipConfigChangeListener> listeners;
     
+    /**
+     * 私有构造函数，防止外部实例化
+     * 初始化配置管理器，加载默认配置
+     */
     private UnzipConfigManager() {
         this.config = UnzipConfig.getDefaultConfig();
         this.configLock = new ReentrantReadWriteLock();
@@ -28,6 +46,12 @@ public class UnzipConfigManager {
         loadConfig();
     }
     
+    /**
+     * 获取配置管理器实例
+     * 使用双重检查锁定确保线程安全
+     *
+     * @return 配置管理器实例
+     */
     public static UnzipConfigManager getInstance() {
         if (instance == null) {
             synchronized (UnzipConfigManager.class) {
@@ -39,6 +63,12 @@ public class UnzipConfigManager {
         return instance;
     }
     
+    /**
+     * 获取当前配置
+     * 使用读锁确保线程安全
+     *
+     * @return 当前配置实例
+     */
     public UnzipConfig getConfig() {
         configLock.readLock().lock();
         try {
@@ -48,6 +78,12 @@ public class UnzipConfigManager {
         }
     }
     
+    /**
+     * 更新配置
+     * 使用写锁确保线程安全，并通知所有监听器
+     *
+     * @param newConfig 新的配置实例
+     */
     public void updateConfig(UnzipConfig newConfig) {
         configLock.writeLock().lock();
         try {
@@ -60,6 +96,12 @@ public class UnzipConfigManager {
         }
     }
     
+    /**
+     * 通知所有配置变更监听器
+     *
+     * @param oldConfig 旧的配置实例
+     * @param newConfig 新的配置实例
+     */
     private void notifyListeners(UnzipConfig oldConfig, UnzipConfig newConfig) {
         for (UnzipConfigChangeListener listener : listeners) {
             try {
@@ -70,16 +112,30 @@ public class UnzipConfigManager {
         }
     }
     
+    /**
+     * 添加配置变更监听器
+     *
+     * @param listener 监听器实例
+     */
     public void addConfigChangeListener(UnzipConfigChangeListener listener) {
         if (listener != null) {
             listeners.add(listener);
         }
     }
     
+    /**
+     * 移除配置变更监听器
+     *
+     * @param listener 监听器实例
+     */
     public void removeConfigChangeListener(UnzipConfigChangeListener listener) {
         listeners.remove(listener);
     }
     
+    /**
+     * 从配置文件加载配置
+     * 如果配置文件不存在，则创建默认配置文件
+     */
     private void loadConfig() {
         File file = new File(configFile);
         if (!file.exists()) {
@@ -114,6 +170,10 @@ public class UnzipConfigManager {
         }
     }
     
+    /**
+     * 保存配置到配置文件
+     * 将当前配置的所有属性保存到 properties 文件中
+     */
     private void saveConfig() {
         Properties props = new Properties();
         props.setProperty("maxFileSize", String.valueOf(config.getMaxFileSize()));

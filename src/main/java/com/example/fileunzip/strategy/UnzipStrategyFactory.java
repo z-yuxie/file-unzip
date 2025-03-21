@@ -1,6 +1,8 @@
 package com.example.fileunzip.strategy;
 
-import com.example.fileunzip.util.CompressionFormatDetector;
+import com.example.fileunzip.format.CompressionFormat;
+import com.example.fileunzip.format.CompressionFormatDetector;
+import com.example.fileunzip.exception.UnzipException;
 
 /**
  * 解压策略工厂接口
@@ -12,22 +14,23 @@ public interface UnzipStrategyFactory {
      * @param format 压缩格式
      * @param strategy 解压策略
      */
-    void registerStrategy(CompressionFormatDetector.CompressionFormat format, UnzipStrategy strategy);
+    void registerStrategy(CompressionFormat format, UnzipStrategy strategy);
 
     /**
      * 获取解压策略
      *
      * @param format 压缩格式
      * @return 解压策略
+     * @throws UnzipException 当不支持指定格式时抛出异常
      */
-    UnzipStrategy getStrategy(CompressionFormatDetector.CompressionFormat format);
+    UnzipStrategy getStrategy(CompressionFormat format) throws UnzipException;
 
     /**
      * 移除解压策略
      *
      * @param format 压缩格式
      */
-    void removeStrategy(CompressionFormatDetector.CompressionFormat format);
+    void removeStrategy(CompressionFormat format);
 
     /**
      * 检查是否支持指定的压缩格式
@@ -35,5 +38,5 @@ public interface UnzipStrategyFactory {
      * @param format 压缩格式
      * @return 是否支持
      */
-    boolean supportsFormat(CompressionFormatDetector.CompressionFormat format);
+    boolean supportsFormat(CompressionFormat format);
 } 

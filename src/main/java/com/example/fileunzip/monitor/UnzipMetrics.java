@@ -1,12 +1,17 @@
 package com.example.fileunzip.monitor;
 
 import com.example.fileunzip.exception.UnzipErrorCode;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.Map;
-import java.util.HashMap;
 
 /**
  * 解压监控接口
+ * 用于收集和记录解压过程中的各种指标，包括：
+ * 1. 解压时间和速度
+ * 2. 文件大小和数量
+ * 3. 内存使用情况
+ * 4. 错误和成功记录
+ * 5. 并发任务数
+ * 6. 安全验证结果
  */
 public interface UnzipMetrics {
     /**
@@ -101,13 +106,37 @@ public interface UnzipMetrics {
      */
     void reset();
 
+    /**
+     * 记录处理时间
+     *
+     * @param time 处理时间（毫秒）
+     */
     void recordProcessingTime(long time);
     
+    /**
+     * 记录已处理的字节数
+     *
+     * @param bytes 已处理的字节数
+     */
     void recordBytesProcessed(long bytes);
     
+    /**
+     * 记录已处理的文件数量
+     *
+     * @param count 已处理的文件数量
+     */
     void recordFilesProcessed(int count);
     
+    /**
+     * 更新峰值内存使用量
+     * 将当前内存使用量与历史峰值进行比较，如果当前值更大则更新
+     */
     void updatePeakMemoryUsage();
     
+    /**
+     * 获取所有监控指标
+     *
+     * @return 包含所有监控指标的 Map，key 为指标名称，value 为指标值
+     */
     Map<String, Object> getMetrics();
 } 

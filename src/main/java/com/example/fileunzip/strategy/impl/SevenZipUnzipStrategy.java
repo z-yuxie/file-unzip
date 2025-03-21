@@ -1,7 +1,8 @@
 package com.example.fileunzip.strategy.impl;
 
 import com.example.fileunzip.config.UnzipConfig;
-import com.example.fileunzip.util.CompressionFormatDetector;
+import com.example.fileunzip.format.CompressionFormat;
+import com.example.fileunzip.format.CompressionFormatDetector;
 import net.sf.sevenzipjbinding.*;
 import net.sf.sevenzipjbinding.SevenZipException;
 
@@ -29,8 +30,8 @@ public class SevenZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
     
     @Override
-    protected boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format) {
-        return format == CompressionFormatDetector.CompressionFormat.SEVEN_ZIP;
+    protected boolean isSupportedFormat(CompressionFormat format) {
+        return format == CompressionFormat.SEVEN_ZIP;
     }
 
     @Override
@@ -44,9 +45,7 @@ public class SevenZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
 
     @Override
-    public CompressionFormatDetector.CompressionFormat[] getSupportedFormats() {
-        return new CompressionFormatDetector.CompressionFormat[]{
-            CompressionFormatDetector.CompressionFormat.SEVEN_ZIP
-        };
+    public CompressionFormat[] getSupportedFormats() {
+        return new CompressionFormat[]{CompressionFormat.SEVEN_ZIP};
     }
 } 

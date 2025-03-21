@@ -1,4 +1,4 @@
-package com.example.fileunzip.util;
+package com.example.fileunzip.format;
 
 import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.archivers.ArchiveStreamFactory;
@@ -16,40 +16,10 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * 压缩格式检测工具类
- * 用于自动检测压缩文件的格式
+ * 压缩格式检测器
+ * 用于自动检测压缩文件的格式并创建对应的解压输入流
  */
 public class CompressionFormatDetector {
-    
-    /**
-     * 压缩格式枚举
-     */
-    public enum CompressionFormat {
-        ZIP("zip"),
-        RAR("rar"),
-        SEVEN_ZIP("7z"),
-        TAR("tar"),
-        TAR_GZ("tar.gz"),
-        TAR_BZ2("tar.bz2"),
-        TAR_XZ("tar.xz"),
-        GZIP("gz"),
-        BZIP2("bz2"),
-        XZ("xz"),
-        LZMA("lzma"),
-        SNAPPY("snappy"),
-        LZ4("lz4"),
-        UNKNOWN("unknown");
-        
-        private final String extension;
-        
-        CompressionFormat(String extension) {
-            this.extension = extension;
-        }
-        
-        public String getExtension() {
-            return extension;
-        }
-    }
     
     /**
      * 检测压缩文件格式
@@ -62,7 +32,18 @@ public class CompressionFormatDetector {
             return CompressionFormat.UNKNOWN;
         }
         
-        // 检查文件魔数
+        // 检查复合格式
+        if (isGzippedTar(data)) {
+            return CompressionFormat.TAR_GZ;
+        }
+        if (isBzip2Tar(data)) {
+            return CompressionFormat.TAR_BZ2;
+        }
+        if (isXzTar(data)) {
+            return CompressionFormat.TAR_XZ;
+        }
+        
+        // 检查单一格式
         if (isZip(data)) {
             return CompressionFormat.ZIP;
         }
@@ -111,35 +92,23 @@ public class CompressionFormatDetector {
         CompressorStreamFactory compressorFactory = new CompressorStreamFactory();
         
         try {
-            switch (format) {
-                case ZIP:
-                    return archiveFactory.createArchiveInputStream(ArchiveStreamFactory.ZIP, bis);
-                case TAR:
-                    return archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR, bis);
-                case TAR_GZ:
-                    return archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR,
+            return switch (format) {
+                case ZIP -> archiveFactory.createArchiveInputStream(ArchiveStreamFactory.ZIP, bis);
+                case TAR -> archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR, bis);
+                case TAR_GZ -> archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR,
                         compressorFactory.createCompressorInputStream(CompressorStreamFactory.GZIP, bis));
-                case TAR_BZ2:
-                    return archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR,
+                case TAR_BZ2 -> archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR,
                         compressorFactory.createCompressorInputStream(CompressorStreamFactory.BZIP2, bis));
-                case TAR_XZ:
-                    return archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR,
+                case TAR_XZ -> archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR,
                         compressorFactory.createCompressorInputStream(CompressorStreamFactory.XZ, bis));
-                case GZIP:
-                    return new GzipCompressorInputStream(bis);
-                case BZIP2:
-                    return new BZip2CompressorInputStream(bis);
-                case XZ:
-                    return new XZCompressorInputStream(bis);
-                case LZMA:
-                    return new LZMACompressorInputStream(bis);
-                case SNAPPY:
-                    return new SnappyCompressorInputStream(bis);
-                case LZ4:
-                    return new BlockLZ4CompressorInputStream(bis);
-                default:
-                    throw new IllegalArgumentException("不支持的压缩格式: " + format);
-            }
+                case GZIP -> new GzipCompressorInputStream(bis);
+                case BZIP2 -> new BZip2CompressorInputStream(bis);
+                case XZ -> new XZCompressorInputStream(bis);
+                case LZMA -> new LZMACompressorInputStream(bis);
+                case SNAPPY -> new SnappyCompressorInputStream(bis);
+                case LZ4 -> new BlockLZ4CompressorInputStream(bis);
+                default -> throw new IllegalArgumentException("不支持的压缩格式: " + format);
+            };
         } catch (ArchiveException e) {
             throw new IOException("创建归档输入流失败", e);
         } catch (CompressorException e) {
@@ -163,9 +132,16 @@ public class CompressionFormatDetector {
     
     /**
      * 检查是否为7Z格式
+     * 7Z文件魔数：7z\xBC\xAF\x27\x1C
      */
     private static boolean isSevenZip(byte[] data) {
-        return data[0] == 0x37 && data[1] == 0x7A && data[2] == 0xBC && data[3] == 0xAF;
+        return data.length >= 6 &&
+               data[0] == 0x37 && // '7'
+               data[1] == 0x7A && // 'z'
+               data[2] == (byte)0xBC && 
+               data[3] == (byte)0xAF &&
+               data[4] == 0x27 &&
+               data[5] == 0x1C;
     }
     
     /**
@@ -210,5 +186,61 @@ public class CompressionFormatDetector {
     
     private static boolean isLz4(byte[] data) {
         return data.length >= 4 && data[0] == 0x04 && data[1] == 0x22 && data[2] == 0x4D && data[3] == 0x18;
+    }
+    
+    /**
+     * 检查是否为GZIP压缩的TAR文件
+     */
+    private static boolean isGzippedTar(byte[] data) {
+        // GZIP 魔数: 1f 8b
+        if (data[0] != 0x1F || data[1] != (byte)0x8B) {
+            return false;
+        }
+        
+        // 尝试解压前512字节检查是否为TAR格式
+        try (GzipCompressorInputStream gzipIn = new GzipCompressorInputStream(new ByteArrayInputStream(data))) {
+            byte[] tarHeader = new byte[512];
+            int read = gzipIn.read(tarHeader);
+            return read == 512 && isTar(tarHeader);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+    
+    /**
+     * 检查是否为BZIP2压缩的TAR文件
+     */
+    private static boolean isBzip2Tar(byte[] data) {
+        // BZip2 魔数: 42 5a 68 ('BZh')
+        if (data[0] != 0x42 || data[1] != 0x5A || data[2] != 0x68) {
+            return false;
+        }
+        
+        try (BZip2CompressorInputStream bzipIn = new BZip2CompressorInputStream(new ByteArrayInputStream(data))) {
+            byte[] tarHeader = new byte[512];
+            int read = bzipIn.read(tarHeader);
+            return read == 512 && isTar(tarHeader);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+    
+    /**
+     * 检查是否为XZ压缩的TAR文件
+     */
+    private static boolean isXzTar(byte[] data) {
+        // XZ 魔数: fd 37 7a 58 5a 00
+        if (data[0] != (byte)0xFD || data[1] != 0x37 || data[2] != 0x7A || 
+            data[3] != 0x58 || data[4] != 0x5A || data[5] != 0x00) {
+            return false;
+        }
+        
+        try (XZCompressorInputStream xzIn = new XZCompressorInputStream(new ByteArrayInputStream(data))) {
+            byte[] tarHeader = new byte[512];
+            int read = xzIn.read(tarHeader);
+            return read == 512 && isTar(tarHeader);
+        } catch (IOException e) {
+            return false;
+        }
     }
 } 

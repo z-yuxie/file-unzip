@@ -3,7 +3,8 @@ package com.example.fileunzip.strategy;
 import com.example.fileunzip.callback.UnzipProgressCallback;
 import com.example.fileunzip.exception.UnzipException;
 import com.example.fileunzip.model.FileInfo;
-import com.example.fileunzip.util.CompressionFormatDetector;
+import com.example.fileunzip.format.CompressionFormat;
+import com.example.fileunzip.format.CompressionFormatDetector;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,7 +59,7 @@ public interface UnzipStrategy {
      *
      * @return 支持的压缩格式列表
      */
-    CompressionFormatDetector.CompressionFormat[] getSupportedFormats();
+    CompressionFormat[] getSupportedFormats();
 
     /**
      * 关闭策略，释放资源

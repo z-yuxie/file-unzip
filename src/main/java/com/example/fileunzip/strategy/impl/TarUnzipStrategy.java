@@ -4,7 +4,8 @@ import com.example.fileunzip.callback.UnzipProgressCallback;
 import com.example.fileunzip.config.UnzipConfig;
 import com.example.fileunzip.exception.UnzipException;
 import com.example.fileunzip.model.FileInfo;
-import com.example.fileunzip.util.CompressionFormatDetector;
+import com.example.fileunzip.format.CompressionFormat;
+import com.example.fileunzip.format.CompressionFormatDetector;
 import net.sf.sevenzipjbinding.*;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -32,8 +33,8 @@ public class TarUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
 
     @Override
-    protected boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format) {
-        return format == CompressionFormatDetector.CompressionFormat.TAR;
+    protected boolean isSupportedFormat(CompressionFormat format) {
+        return format == CompressionFormat.TAR;
     }
 
     @Override
@@ -47,37 +48,15 @@ public class TarUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
 
     @Override
-    public Map<FileInfo, byte[]> unzip(InputStream inputStream) throws UnzipException {
-        return super.unzip(inputStream);
-    }
-
-    @Override
-    public Map<FileInfo, byte[]> unzip(InputStream inputStream, String password) throws UnzipException {
-        return super.unzip(inputStream, password);
-    }
-
-    @Override
-    public Map<FileInfo, byte[]> unzip(InputStream inputStream, UnzipProgressCallback callback) throws UnzipException {
-        return super.unzip(inputStream, callback);
-    }
-
-    @Override
-    public Map<FileInfo, byte[]> unzip(InputStream inputStream, String password, UnzipProgressCallback callback) throws UnzipException {
-        return super.unzip(inputStream, password, callback);
-    }
-
-    @Override
-    public CompressionFormatDetector.CompressionFormat[] getSupportedFormats() {
-        return new CompressionFormatDetector.CompressionFormat[]{
-            CompressionFormatDetector.CompressionFormat.TAR
-        };
+    public CompressionFormat[] getSupportedFormats() {
+        return new CompressionFormat[]{CompressionFormat.TAR};
     }
     
     /**
      * 检查是否为TAR相关格式
      */
-    private boolean isTarFormat(CompressionFormatDetector.CompressionFormat format) {
-        return format == CompressionFormatDetector.CompressionFormat.TAR;
+    private boolean isTarFormat(CompressionFormat format) {
+        return format == CompressionFormat.TAR;
     }
 
     /**

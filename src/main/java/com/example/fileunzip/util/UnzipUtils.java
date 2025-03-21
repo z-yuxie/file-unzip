@@ -21,7 +21,11 @@ import java.util.Date;
 @Slf4j
 public class UnzipUtils {
     
-    /** 内存使用率阈值，超过此阈值将抛出异常 */
+    /**
+     * 内存使用率阈值
+     * 当系统内存使用率超过此阈值时，将抛出 UnzipException 异常
+     * 默认值为 0.8，表示 80% 的内存使用率
+     */
     private static final double MEMORY_THRESHOLD = 0.8;
     
     /**

@@ -2,15 +2,11 @@ package com.example.fileunzip.strategy.impl;
 
 import com.example.fileunzip.callback.UnzipProgressCallback;
 import com.example.fileunzip.config.UnzipConfig;
-import com.example.fileunzip.exception.UnzipErrorCode;
 import com.example.fileunzip.exception.UnzipException;
+import com.example.fileunzip.format.CompressionFormat;
+import com.example.fileunzip.format.CompressionFormatDetector;
 import com.example.fileunzip.model.FileInfo;
-import com.example.fileunzip.util.CompressionFormatDetector;
-import com.example.fileunzip.util.UnzipUtils;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.compress.compressors.CompressorInputStream;
-import org.apache.commons.compress.compressors.CompressorStreamFactory;
-import net.sf.sevenzipjbinding.*;
+import com.example.fileunzip.strategy.UnzipStrategy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -19,58 +15,17 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 通用压缩文件解压策略实现类
- * 使用Apache Commons Compress库实现各种单文件压缩格式的解压功能
- * 支持以下格式：
- * 1. GZIP (.gz)
- * 2. BZIP2 (.bz2)
- * 3. XZ (.xz)
- * 4. LZMA (.lzma)
+ * 压缩文件解压策略
+ * 用于处理单文件压缩格式，如GZIP、BZIP2等
  */
-@Slf4j
-public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
+public class CompressedFileUnzipStrategy implements UnzipStrategy {
     
-    private final CompressionFormatDetector.CompressionFormat format;
+    private final UnzipConfig unzipConfig;
     
-    /**
-     * 构造函数
-     *
-     * @param format 压缩格式
-     * @param unzipConfig 解压配置
-     */
-    public CompressedFileUnzipStrategy(CompressionFormatDetector.CompressionFormat format, UnzipConfig unzipConfig) {
-        super(unzipConfig);
-        if (format == null) {
-            throw new IllegalArgumentException("压缩格式不能为空");
-        }
-        this.format = format;
+    public CompressedFileUnzipStrategy(UnzipConfig unzipConfig) {
+        this.unzipConfig = unzipConfig;
     }
-
-    /**
-     * 检查是否为支持的压缩格式
-     */
-    private boolean isSupportedCompressionFormat(CompressionFormatDetector.CompressionFormat format) {
-        return format == CompressionFormatDetector.CompressionFormat.GZIP ||
-               format == CompressionFormatDetector.CompressionFormat.BZIP2 ||
-               format == CompressionFormatDetector.CompressionFormat.XZ ||
-               format == CompressionFormatDetector.CompressionFormat.LZMA;
-    }
-
-    @Override
-    protected boolean isSupportedFormat(CompressionFormatDetector.CompressionFormat format) {
-        return this.format == format;
-    }
-
-    @Override
-    protected String getTempFileExtension() {
-        return "." + format.name().toLowerCase();
-    }
-
-    @Override
-    protected IInArchive openArchive(IInStream inStream) throws SevenZipException {
-        return SevenZip.openInArchive(null, inStream);
-    }
-
+    
     @Override
     public Map<FileInfo, byte[]> unzip(InputStream inputStream) throws UnzipException {
         return unzip(inputStream, null, null);
@@ -89,36 +44,66 @@ public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
     @Override
     public Map<FileInfo, byte[]> unzip(InputStream inputStream, String password, UnzipProgressCallback callback) throws UnzipException {
         try {
-            // 创建压缩流
-            CompressorInputStream compressorInputStream = createCompressorInputStream(inputStream);
-            
-            // 读取压缩数据
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            byte[] buffer = new byte[unzipConfig.getBufferSize()];
-            int bytesRead;
-            long totalBytesRead = 0;
-            
-            while ((bytesRead = compressorInputStream.read(buffer)) != -1) {
-                totalBytesRead += bytesRead;
-                UnzipUtils.validateFileSize(totalBytesRead, unzipConfig);
-                outputStream.write(buffer, 0, bytesRead);
-                
-                // 通知进度
-                if (callback != null) {
-                    callback.onProgress("decompressed_file", totalBytesRead, totalBytesRead, 1, 1);
+            // 读取所有数据
+            byte[] data;
+            try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[unzipConfig.getBufferSize()];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
                 }
+                data = outputStream.toByteArray();
             }
             
-            // 创建文件信息
-            FileInfo fileInfo = FileInfo.builder()
-                .fileName("decompressed_file")
-                .path("decompressed_file")
-                .size(outputStream.size())
-                .lastModified(System.currentTimeMillis())
-                .build();
+            // 检测压缩格式
+            CompressionFormat format = CompressionFormatDetector.detect(data);
+            if (format == CompressionFormat.UNKNOWN) {
+                throw new UnzipException("不支持的压缩格式");
+            }
             
+            // 创建解压输入流并读取数据
             Map<FileInfo, byte[]> result = new HashMap<>();
-            result.put(fileInfo, outputStream.toByteArray());
+            try (InputStream decompressor = CompressionFormatDetector.createDecompressor(data, format);
+                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+                
+                byte[] buffer = new byte[unzipConfig.getBufferSize()];
+                int bytesRead;
+                long totalBytesRead = 0;
+                
+                while ((bytesRead = decompressor.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                    totalBytesRead += bytesRead;
+                    
+                    // 检查文件大小限制
+                    if (unzipConfig.isEnableFileSizeCheck() && totalBytesRead > unzipConfig.getMaxFileSize()) {
+                        throw new UnzipException(
+                            String.format("文件大小超过限制: %d > %d", totalBytesRead, unzipConfig.getMaxFileSize()));
+                    }
+                    
+                    // 通知进度
+                    if (callback != null) {
+                        callback.onProgress("compressed_file", totalBytesRead, -1, 1, 1);
+                    }
+                }
+                
+                // 创建结果
+                byte[] content = outputStream.toByteArray();
+                
+                // 检查解压后的文件大小
+                if (unzipConfig.isEnableFileSizeCheck() && content.length > unzipConfig.getMaxFileSize()) {
+                    throw new UnzipException(
+                        String.format("解压后文件大小超过限制: %d > %d", content.length, unzipConfig.getMaxFileSize()));
+                }
+                
+                FileInfo fileInfo = FileInfo.builder()
+                    .fileName("compressed_file")
+                    .path("compressed_file")
+                    .size(content.length)
+                    .lastModified(System.currentTimeMillis())
+                    .build();
+                
+                result.put(fileInfo, content);
+            }
             
             // 通知完成
             if (callback != null) {
@@ -126,56 +111,29 @@ public class CompressedFileUnzipStrategy extends AbstractArchiveUnzipStrategy {
             }
             
             return result;
+            
         } catch (IOException e) {
             if (callback != null) {
                 callback.onError(e.getMessage());
             }
-            throw new UnzipException(UnzipErrorCode.IO_ERROR, "解压文件失败", e);
+            throw new UnzipException("解压文件失败", e);
         }
-    }
-
-    private CompressorInputStream createCompressorInputStream(InputStream inputStream) throws UnzipException {
-        try {
-            CompressorStreamFactory factory = new CompressorStreamFactory();
-            switch (format) {
-                case GZIP:
-                    return factory.createCompressorInputStream(CompressorStreamFactory.GZIP, inputStream);
-                case BZIP2:
-                    return factory.createCompressorInputStream(CompressorStreamFactory.BZIP2, inputStream);
-                case XZ:
-                    return factory.createCompressorInputStream(CompressorStreamFactory.XZ, inputStream);
-                case LZMA:
-                    return factory.createCompressorInputStream(CompressorStreamFactory.LZMA, inputStream);
-                default:
-                    throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "不支持的压缩格式: " + format);
-            }
-        } catch (Exception e) {
-            throw new UnzipException(UnzipErrorCode.IO_ERROR, "创建压缩流失败", e);
-        }
-    }
-
-    @Override
-    public CompressionFormatDetector.CompressionFormat[] getSupportedFormats() {
-        return new CompressionFormatDetector.CompressionFormat[] { format };
     }
     
-    /**
-     * 获取解压后的默认文件扩展名
-     *
-     * @return 默认文件扩展名
-     */
-    private String getDefaultExtension() {
-        switch (format) {
-            case GZIP:
-                return ".gz";
-            case BZIP2:
-                return ".bz2";
-            case XZ:
-                return ".xz";
-            case LZMA:
-                return ".lzma";
-            default:
-                return ".compressed";
-        }
+    @Override
+    public CompressionFormat[] getSupportedFormats() {
+        return new CompressionFormat[]{
+            CompressionFormat.GZIP,
+            CompressionFormat.BZIP2,
+            CompressionFormat.XZ,
+            CompressionFormat.LZMA,
+            CompressionFormat.SNAPPY,
+            CompressionFormat.LZ4
+        };
+    }
+    
+    @Override
+    public void close() throws IOException {
+        // 无需关闭资源
     }
 } 
