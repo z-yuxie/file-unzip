@@ -61,9 +61,9 @@ public interface UnzipStrategy {
     CompressionFormat[] getSupportedFormats();
 
     /**
-     * 关闭策略，释放资源
+     * 关闭资源
      *
-     * @throws IOException 关闭过程中可能发生的IO异常
+     * @throws IOException 关闭资源时可能发生的异常
      */
     void close() throws IOException;
 } 
