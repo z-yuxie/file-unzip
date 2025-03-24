@@ -100,12 +100,16 @@ public class CompoundArchiveUnzipStrategy implements UnzipStrategy {
     }
     
     private InputStream createFirstLevelDecompressor(InputStream input, CompressionFormat format) throws IOException {
-        return switch (format) {
-            case TAR_GZ -> new GzipCompressorInputStream(input);
-            case TAR_BZ2 -> new BZip2CompressorInputStream(input);
-            case TAR_XZ -> new XZCompressorInputStream(input);
-            default -> throw new IllegalArgumentException("不支持的复合压缩格式: " + format);
-        };
+        switch (format) {
+            case TAR_GZ:
+                return new GzipCompressorInputStream(input);
+            case TAR_BZ2:
+                return new BZip2CompressorInputStream(input);
+            case TAR_XZ:
+                return new XZCompressorInputStream(input);
+            default:
+                throw new IllegalArgumentException("不支持的复合压缩格式: " + format);
+        }
     }
     
     private boolean isSupportedFormat(CompressionFormat format) {

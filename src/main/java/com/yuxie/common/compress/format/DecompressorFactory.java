@@ -71,27 +71,46 @@ public class DecompressorFactory {
      * 检查是否支持通过通用解压器处理该格式
      */
     private static boolean isSupportedFormat(CompressionFormat format) {
-        return switch (format) {
-            case GZIP, BZIP2, XZ, LZMA, SNAPPY, LZ4,
-                 TAR, TAR_GZ, TAR_BZ2, TAR_XZ -> true;
-            case ZIP, RAR, SEVEN_ZIP -> false;
-            default -> false;
-        };
+        switch (format) {
+            case GZIP:
+            case BZIP2:
+            case XZ:
+            case LZMA:
+            case SNAPPY:
+            case LZ4:
+            case TAR:
+            case TAR_GZ:
+            case TAR_BZ2:
+            case TAR_XZ:
+                return true;
+            case ZIP:
+            case RAR:
+            case SEVEN_ZIP:
+            default:
+                return false;
+        }
     }
     
     /**
      * 创建压缩格式输入流
      */
     private static InputStream createCompressorStream(InputStream input, CompressionFormat format) throws CompressorException {
-        return switch (format) {
-            case GZIP -> compressorFactory.createCompressorInputStream(CompressorStreamFactory.GZIP, input);
-            case BZIP2 -> compressorFactory.createCompressorInputStream(CompressorStreamFactory.BZIP2, input);
-            case XZ -> compressorFactory.createCompressorInputStream(CompressorStreamFactory.XZ, input);
-            case LZMA -> compressorFactory.createCompressorInputStream(CompressorStreamFactory.LZMA, input);
-            case SNAPPY -> compressorFactory.createCompressorInputStream(CompressorStreamFactory.SNAPPY_FRAMED, input);
-            case LZ4 -> compressorFactory.createCompressorInputStream(CompressorStreamFactory.LZ4_BLOCK, input);
-            default -> null;
-        };
+        switch (format) {
+            case GZIP:
+                return compressorFactory.createCompressorInputStream(CompressorStreamFactory.GZIP, input);
+            case BZIP2:
+                return compressorFactory.createCompressorInputStream(CompressorStreamFactory.BZIP2, input);
+            case XZ:
+                return compressorFactory.createCompressorInputStream(CompressorStreamFactory.XZ, input);
+            case LZMA:
+                return compressorFactory.createCompressorInputStream(CompressorStreamFactory.LZMA, input);
+            case SNAPPY:
+                return compressorFactory.createCompressorInputStream(CompressorStreamFactory.SNAPPY_FRAMED, input);
+            case LZ4:
+                return compressorFactory.createCompressorInputStream(CompressorStreamFactory.LZ4_BLOCK, input);
+            default:
+                return null;
+        }
     }
     
     /**
@@ -99,34 +118,39 @@ public class DecompressorFactory {
      */
     private static InputStream createArchiveStream(InputStream input, CompressionFormat format) throws IOException {
         try {
-            return switch (format) {
-                case TAR -> new CloseShieldInputStream(
-                    archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR, input),
-                    input
-                );
-                case TAR_GZ -> {
+            InputStream result;
+            switch (format) {
+                case TAR:
+                    result = new CloseShieldInputStream(
+                        archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR, input),
+                        input
+                    );
+                    break;
+                case TAR_GZ:
                     InputStream gzipStream = compressorFactory.createCompressorInputStream(CompressorStreamFactory.GZIP, input);
-                    yield new CloseShieldInputStream(
+                    result = new CloseShieldInputStream(
                         archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR, gzipStream),
                         gzipStream, input
                     );
-                }
-                case TAR_BZ2 -> {
+                    break;
+                case TAR_BZ2:
                     InputStream bzip2Stream = compressorFactory.createCompressorInputStream(CompressorStreamFactory.BZIP2, input);
-                    yield new CloseShieldInputStream(
+                    result = new CloseShieldInputStream(
                         archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR, bzip2Stream),
                         bzip2Stream, input
                     );
-                }
-                case TAR_XZ -> {
+                    break;
+                case TAR_XZ:
                     InputStream xzStream = compressorFactory.createCompressorInputStream(CompressorStreamFactory.XZ, input);
-                    yield new CloseShieldInputStream(
+                    result = new CloseShieldInputStream(
                         archiveFactory.createArchiveInputStream(ArchiveStreamFactory.TAR, xzStream),
                         xzStream, input
                     );
-                }
-                default -> throw new IllegalArgumentException("不支持的压缩格式: " + format);
-            };
+                    break;
+                default:
+                    throw new IllegalArgumentException("不支持的压缩格式: " + format);
+            }
+            return result;
         } catch (ArchiveException | CompressorException e) {
             throw new IOException("创建" + format + "格式解压流失败: " + e.getMessage(), e);
         }

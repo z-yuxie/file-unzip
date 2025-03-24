@@ -113,12 +113,20 @@ public class DefaultUnzipStrategyFactory implements UnzipStrategyFactory {
             return strategy;
         }
 
-        return switch (format) {
-            case ZIP -> new ZipUnzipStrategy(unzipConfig);
-            case RAR -> new RarUnzipStrategy(unzipConfig);
-            case TAR, TAR_GZ, TAR_BZ2, TAR_XZ -> new TarUnzipStrategy(unzipConfig);
-            case SEVEN_ZIP -> new SevenZipUnzipStrategy(unzipConfig);
-            default -> new CompressedFileUnzipStrategy(unzipConfig);
-        };
+        switch (format) {
+            case ZIP:
+                return new ZipUnzipStrategy(unzipConfig);
+            case RAR:
+                return new RarUnzipStrategy(unzipConfig);
+            case TAR:
+            case TAR_GZ:
+            case TAR_BZ2:
+            case TAR_XZ:
+                return new TarUnzipStrategy(unzipConfig);
+            case SEVEN_ZIP:
+                return new SevenZipUnzipStrategy(unzipConfig);
+            default:
+                return new CompressedFileUnzipStrategy(unzipConfig);
+        }
     }
 } 

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.apache.commons.io.IOUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -62,7 +64,7 @@ class UnzipServiceTest {
      * @throws IOException 如果读取文件失败
      */
     private static byte[] getFileBytes(String filePath) throws IOException {
-        Path path = Path.of(filePath);
+        Path path = Paths.get(filePath);
         return Files.readAllBytes(path);
     }
 
@@ -77,7 +79,7 @@ class UnzipServiceTest {
     private static byte[] getFileBytesWithBuffer(String filePath, int bufferSize) throws IOException {
         File file = new File(filePath);
         try (InputStream inputStream = Files.newInputStream(file.toPath())) {
-            return inputStream.readAllBytes();
+            return IOUtils.toByteArray(inputStream);
         }
     }
 
