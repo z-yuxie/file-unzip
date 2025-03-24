@@ -58,12 +58,11 @@ UnzipConfig config = UnzipConfig.builder()
 
 // 创建服务
 UnzipService unzipService = new UnzipService(
-    new DefaultUnzipStrategyFactory(),
     config,
     new UnzipMetrics()
 );
 
-// 创建进度回调
+// 创建进度回调（非必须）
 UnzipProgressCallback callback = new UnzipProgressCallback() {
     @Override
     public void onStart(long totalSize, int totalFiles) {
