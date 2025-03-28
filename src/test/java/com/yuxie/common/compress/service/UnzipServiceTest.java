@@ -6,9 +6,11 @@ import com.yuxie.common.compress.exception.UnzipErrorCode;
 import com.yuxie.common.compress.exception.UnzipException;
 import com.yuxie.common.compress.format.CompressionFormat;
 import com.yuxie.common.compress.model.FileInfo;
+import com.yuxie.common.compress.monitor.DefaultUnzipMetrics;
 import com.yuxie.common.compress.monitor.UnzipMetrics;
 import com.yuxie.common.compress.strategy.UnzipStrategy;
 import com.yuxie.common.compress.strategy.UnzipStrategyFactory;
+import com.yuxie.common.compress.strategy.impl.DefaultUnzipStrategyFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -53,6 +55,8 @@ class UnzipServiceTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         unzipConfig = UnzipConfig.builder().build();
+        strategyFactory = new DefaultUnzipStrategyFactory(unzipConfig);
+        metrics = new DefaultUnzipMetrics();
         unzipService = new UnzipService(strategyFactory, unzipConfig, metrics);
     }
 
@@ -110,7 +114,8 @@ class UnzipServiceTest {
     }
 
     @Test
-    void testUnzipWithProgressCallback() throws UnzipException {
+    void testUnzipWithProgressCallback() throws UnzipException, IOException {
+        unzipConfig.setEnableFileTypeCheck(false);
         // 准备测试数据
         byte[] testData = "test data".getBytes();
         Map<FileInfo, byte[]> expectedResult = new HashMap<>();

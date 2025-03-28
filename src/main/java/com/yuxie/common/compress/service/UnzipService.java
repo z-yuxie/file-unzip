@@ -139,7 +139,9 @@ public class UnzipService {
      * 创建输入流
      */
     private InputStream createInputStream(byte[] data, CompressionFormat format) throws IOException {
-        if (format == CompressionFormat.RAR || format == CompressionFormat.SEVEN_ZIP) {
+        if (format == CompressionFormat.ZIP
+                || format == CompressionFormat.SEVEN_ZIP
+                || format == CompressionFormat.RAR) {
             return new ByteArrayInputStream(data);
         }
         return DecompressorFactory.createDecompressor(data, format);
