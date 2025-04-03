@@ -105,14 +105,8 @@ public class UnzipService implements AutoCloseable {
         long startTime = System.currentTimeMillis();
 
         try {
-            // 创建输入流
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
-            
-            // 使用复合输入流管理资源
-            CompressionCompositeInputStream compositeInputStream = new CompressionCompositeInputStream(inputStream);
-            
             // 检测压缩格式
-            CompressionFormat format = CompressionFormatDetector.detectFormat(compositeInputStream);
+            CompressionFormat format = CompressionFormatDetector.detectFormat(data);
             if (format == CompressionFormat.UNKNOWN) {
                 throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "无法识别的压缩格式");
             }
@@ -123,17 +117,21 @@ public class UnzipService implements AutoCloseable {
                 throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "不支持的压缩格式: " + format);
             }
 
-            // 执行解压
-            Map<FileInfo, byte[]> result = callback != null ?
-                strategy.unzip(compositeInputStream, callback) :
-                strategy.unzip(compositeInputStream);
+            // 创建输入流并执行解压
+            try (ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
+                 CompressionCompositeInputStream compositeInputStream = new CompressionCompositeInputStream(inputStream)) {
+                
+                // 执行解压，使用新的方法避免重复封装
+                Map<FileInfo, byte[]> result = callback != null ?
+                    strategy.unzipWithCompositeStream(compositeInputStream, callback) :
+                    strategy.unzipWithCompositeStream(compositeInputStream);
 
-            // 记录指标
-            recordMetrics(startTime, data.length, result.size());
+                // 记录指标
+                recordMetrics(startTime, data.length, result.size());
 
-            log.info("文件解压完成，共解压 {} 个文件", result.size());
-            return result;
-
+                log.info("文件解压完成，共解压 {} 个文件", result.size());
+                return result;
+            }
         } catch (Exception e) {
             handleError(e);
             if (e instanceof UnzipException) {

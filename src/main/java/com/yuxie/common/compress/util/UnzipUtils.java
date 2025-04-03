@@ -14,21 +14,62 @@ import java.util.regex.Pattern;
 
 /**
  * 解压工具类
- * 提供文件解压相关的通用工具方法，包括：
- * 1. 文件路径验证
- * 2. 文件类型检查
- * 3. 文件大小验证
- * 4. 内存使用监控
- * 5. 临时文件管理
+ * <p>
+ * 提供文件解压相关的通用工具方法，包括文件路径验证、类型检查、大小验证、内存监控等功能。
+ * 该类中的所有方法都是静态的，可以直接通过类名调用。
+ * </p>
+ * <p>
+ * 主要功能：
+ * <ul>
+ *   <li>文件路径验证：检查路径合法性，防止路径遍历攻击</li>
+ *   <li>文件类型检查：验证文件扩展名是否在允许列表中</li>
+ *   <li>文件大小验证：确保文件大小在配置的限制范围内</li>
+ *   <li>内存使用监控：检查系统内存使用情况，防止内存溢出</li>
+ *   <li>临时文件管理：创建和清理临时文件</li>
+ *   <li>路径处理：提供路径规范化、文件名提取等功能</li>
+ *   <li>压缩文件操作：提取文件内容、计算总大小等</li>
+ * </ul>
+ * </p>
+ * <p>
+ * 使用示例：
+ * <pre>
+ * // 验证文件路径
+ * UnzipUtils.validatePath(filePath, config);
+ * 
+ * // 检查文件类型
+ * UnzipUtils.validateFileType(filePath, config);
+ * 
+ * // 创建临时文件
+ * File tempFile = UnzipUtils.createTempFile(data, "prefix", ".tmp");
+ * try {
+ *     // 使用临时文件
+ * } finally {
+ *     UnzipUtils.safeDelete(tempFile);
+ * }
+ * </pre>
+ * </p>
+ *
+ * @author yuxie
+ * @since 1.0.0
+ * @see UnzipConfig
+ * @see UnzipException
  */
 @Slf4j
 public class UnzipUtils {
     
+    /**
+     * 允许的文件扩展名列表
+     * 包含常见的文本文件、源代码文件、配置文件等扩展名
+     */
     private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList(
         ".txt", ".log", ".json", ".xml", ".csv", ".md", ".properties",
         ".java", ".py", ".js", ".html", ".css", ".sql", ".sh", ".bat"
     );
     
+    /**
+     * 路径遍历检测正则表达式
+     * 用于检测路径中是否包含 "../" 等试图访问上级目录的字符串
+     */
     private static final Pattern PATH_TRAVERSAL_PATTERN = Pattern.compile(".*\\.\\./.*");
     
     /**
@@ -40,6 +81,18 @@ public class UnzipUtils {
     
     /**
      * 验证文件路径
+     * <p>
+     * 检查文件路径的合法性，包括：
+     * <ul>
+     *   <li>路径不能为空</li>
+     *   <li>不能包含路径遍历攻击</li>
+     *   <li>路径长度不能超过配置的限制</li>
+     * </ul>
+     * </p>
+     *
+     * @param path 要验证的文件路径
+     * @param config 解压配置对象
+     * @throws UnzipException 当路径验证失败时抛出异常
      */
     public static void validatePath(String path, UnzipConfig config) throws UnzipException {
         if (path == null || path.trim().isEmpty()) {
@@ -60,6 +113,14 @@ public class UnzipUtils {
     
     /**
      * 验证文件类型
+     * <p>
+     * 检查文件扩展名是否在允许列表中。
+     * 如果文件没有扩展名或扩展名为空，则视为合法。
+     * </p>
+     *
+     * @param path 文件路径
+     * @param config 解压配置对象
+     * @throws UnzipException 当文件类型不在允许列表中时抛出异常
      */
     public static void validateFileType(String path, UnzipConfig config) throws UnzipException {
         if (path == null || path.trim().isEmpty()) {
@@ -78,6 +139,13 @@ public class UnzipUtils {
     
     /**
      * 验证文件大小
+     * <p>
+     * 检查文件大小是否超过配置的最大限制。
+     * </p>
+     *
+     * @param size 文件大小（字节）
+     * @param config 解压配置对象
+     * @throws UnzipException 当文件大小超过限制时抛出异常
      */
     public static void validateFileSize(long size, UnzipConfig config) throws UnzipException {
         if (size > config.getMaxFileSize()) {
@@ -88,6 +156,13 @@ public class UnzipUtils {
     
     /**
      * 获取文件扩展名
+     * <p>
+     * 从文件路径中提取文件扩展名，包括点号。
+     * 如果文件没有扩展名，返回null。
+     * </p>
+     *
+     * @param path 文件路径
+     * @return 文件扩展名（包含点号），如果没有扩展名则返回null
      */
     public static String getFileExtension(String path) {
         if (path == null || path.trim().isEmpty()) {
@@ -104,6 +179,16 @@ public class UnzipUtils {
     
     /**
      * 创建临时文件
+     * <p>
+     * 使用指定的数据创建临时文件，并写入数据。
+     * 临时文件会在系统临时目录中创建。
+     * </p>
+     *
+     * @param data 要写入的数据
+     * @param prefix 文件名前缀
+     * @param suffix 文件名后缀
+     * @return 创建的临时文件
+     * @throws IOException 当创建或写入文件失败时抛出异常
      */
     public static File createTempFile(byte[] data, String prefix, String suffix) throws IOException {
         File tempFile = File.createTempFile(prefix, suffix);
@@ -115,6 +200,11 @@ public class UnzipUtils {
     
     /**
      * 安全删除文件
+     * <p>
+     * 尝试删除文件，如果删除失败则记录警告日志。
+     * </p>
+     *
+     * @param file 要删除的文件
      */
     public static void safeDelete(File file) {
         if (file != null && file.exists()) {
@@ -125,7 +215,12 @@ public class UnzipUtils {
     }
     
     /**
-     * 安全关闭流
+     * 安全关闭资源
+     * <p>
+     * 尝试关闭实现了AutoCloseable接口的资源，如果关闭失败则记录警告日志。
+     * </p>
+     *
+     * @param closeable 要关闭的资源
      */
     public static void safeClose(AutoCloseable closeable) {
         if (closeable != null) {
@@ -139,6 +234,13 @@ public class UnzipUtils {
     
     /**
      * 获取文件名
+     * <p>
+     * 从文件路径中提取文件名（不包含路径）。
+     * 支持Windows和Unix风格的路径分隔符。
+     * </p>
+     *
+     * @param path 文件路径
+     * @return 文件名，如果路径为空则返回空字符串
      */
     public static String getFileName(String path) {
         if (path == null || path.trim().isEmpty()) {
@@ -151,6 +253,13 @@ public class UnzipUtils {
     
     /**
      * 获取文件路径
+     * <p>
+     * 从文件路径中提取目录路径（不包含文件名）。
+     * 支持Windows和Unix风格的路径分隔符。
+     * </p>
+     *
+     * @param path 文件路径
+     * @return 目录路径，如果路径为空则返回空字符串
      */
     public static String getFilePath(String path) {
         if (path == null || path.trim().isEmpty()) {
@@ -163,6 +272,16 @@ public class UnzipUtils {
     
     /**
      * 规范化路径
+     * <p>
+     * 将路径转换为标准格式：
+     * <ul>
+     *   <li>将Windows路径分隔符转换为Unix风格</li>
+     *   <li>移除开头的斜杠</li>
+     * </ul>
+     * </p>
+     *
+     * @param path 要规范化的路径
+     * @return 规范化后的路径，如果路径为空则返回空字符串
      */
     public static String normalizePath(String path) {
         if (path == null || path.trim().isEmpty()) {
@@ -182,6 +301,9 @@ public class UnzipUtils {
     
     /**
      * 获取文件的最后修改时间
+     * <p>
+     * 从压缩文件条目中获取文件的最后修改时间。
+     * </p>
      *
      * @param entry 压缩文件条目
      * @return 最后修改时间（毫秒）
@@ -192,6 +314,10 @@ public class UnzipUtils {
     
     /**
      * 从压缩文件中提取文件内容
+     * <p>
+     * 读取压缩文件条目对应的内容，并将其转换为字节数组。
+     * 使用8KB的缓冲区进行读取，以提高性能。
+     * </p>
      *
      * @param archiveInputStream 压缩文件输入流
      * @param entry 压缩文件条目
@@ -212,6 +338,10 @@ public class UnzipUtils {
     
     /**
      * 计算压缩文件中所有文件的总大小
+     * <p>
+     * 遍历压缩文件中的所有条目，累加其大小。
+     * 注意：此操作会消耗输入流，调用后需要重新打开流才能继续使用。
+     * </p>
      *
      * @param archiveInputStream 压缩文件输入流
      * @return 总大小（字节）
@@ -228,6 +358,10 @@ public class UnzipUtils {
     
     /**
      * 检查当前内存使用情况
+     * <p>
+     * 计算当前JVM的内存使用率，如果超过阈值则抛出异常。
+     * 用于防止在解压大文件时发生内存溢出。
+     * </p>
      *
      * @throws UnzipException 当内存使用率超过阈值时抛出异常
      */
@@ -246,41 +380,39 @@ public class UnzipUtils {
     
     /**
      * 创建临时文件
+     * <p>
+     * 从输入流中读取数据并创建临时文件。
+     * 在创建过程中会进行内存使用检查，以防止内存溢出。
+     * </p>
      *
      * @param inputStream 输入流
-     * @param tempDirectory 临时目录
+     * @param tempDirectory 临时文件目录
      * @param extension 文件扩展名
-     * @param config 解压配置
-     * @return 临时文件
-     * @throws UnzipException 当创建失败时抛出异常
+     * @param config 解压配置对象
+     * @return 创建的临时文件
+     * @throws UnzipException 当创建失败或内存不足时抛出异常
      */
     public static File createTempFile(InputStream inputStream, String tempDirectory, 
             String extension, UnzipConfig config) throws UnzipException {
+        // 检查内存使用情况
+        checkMemoryUsage();
+        
         try {
             // 创建临时文件
             File tempFile = File.createTempFile("unzip_", extension, new File(tempDirectory));
             
             // 写入数据
             try (FileOutputStream fos = new FileOutputStream(tempFile)) {
-                byte[] buffer = new byte[config.getBufferSize()];
+                byte[] buffer = new byte[8192];
                 int bytesRead;
-                long totalBytesRead = 0;
-                
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
                     fos.write(buffer, 0, bytesRead);
-                    totalBytesRead += bytesRead;
-                    
-                    // 检查文件大小
-                    if (config.isEnableFileSizeCheck() && totalBytesRead > config.getMaxFileSize()) {
-                        throw new UnzipException(UnzipErrorCode.FILE_TOO_LARGE,
-                            String.format("文件大小超过限制: %d > %d", totalBytesRead, config.getMaxFileSize()));
-                    }
                 }
             }
             
             return tempFile;
         } catch (IOException e) {
-            throw new UnzipException(UnzipErrorCode.IO_ERROR, "创建临时文件失败: " + e.getMessage(), e);
+            throw new UnzipException(UnzipErrorCode.IO_ERROR, "创建临时文件失败", e);
         }
     }
 } 

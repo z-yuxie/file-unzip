@@ -1,7 +1,10 @@
 package com.yuxie.common.compress.model;
 
-import lombok.Data;
+import java.io.Serializable;
+import java.util.Date;
+
 import lombok.Builder;
+import lombok.Data;
 
 /**
  * 文件信息类，用于存储解压后文件的元数据信息

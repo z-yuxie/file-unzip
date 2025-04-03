@@ -4,6 +4,7 @@ import com.yuxie.common.compress.exception.UnzipException;
 import org.apache.commons.compress.archivers.ArchiveStreamFactory;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -27,12 +28,47 @@ public class CompressionFormatDetector {
     /**
      * 检测压缩格式
      */
+    public static CompressionFormat detectFormat(byte[] data) throws UnzipException {
+        if (data == null || data.length == 0) {
+            throw new UnzipException("压缩数据不能为空");
+        }
+
+        // 读取文件头
+        byte[] header = new byte[Math.min(8, data.length)];
+        System.arraycopy(data, 0, header, 0, header.length);
+
+        // 检测压缩格式
+        CompressionFormat format = detectByMagic(header);
+        if (format != CompressionFormat.UNKNOWN) {
+            return format;
+        }
+
+        // 尝试使用Commons Compress的工厂类检测
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(data)) {
+            format = detectByCommonsCompress(inputStream);
+            return format;
+        } catch (IOException e) {
+            throw new UnzipException("检测压缩格式失败", e);
+        }
+    }
+
+    /**
+     * 检测压缩格式（保留原有方法以兼容现有代码）
+     */
     public static CompressionFormat detectFormat(InputStream inputStream) throws UnzipException {
         if (inputStream == null) {
             throw new UnzipException("输入流不能为空");
         }
 
+        // 检查输入流是否支持mark/reset
+        if (!inputStream.markSupported()) {
+            throw new UnzipException("输入流不支持mark/reset操作，无法检测格式");
+        }
+
         try {
+            // 标记输入流位置
+            inputStream.mark(8);
+            
             // 读取文件头
             byte[] header = new byte[8];
             int bytesRead = inputStream.read(header);
@@ -43,9 +79,14 @@ public class CompressionFormatDetector {
             // 检测压缩格式
             CompressionFormat format = detectByMagic(header);
             if (format != CompressionFormat.UNKNOWN) {
+                // 重置输入流位置
+                inputStream.reset();
                 return format;
             }
 
+            // 重置输入流位置
+            inputStream.reset();
+            
             // 尝试使用Commons Compress的工厂类检测
             format = detectByCommonsCompress(inputStream);
             return format;
