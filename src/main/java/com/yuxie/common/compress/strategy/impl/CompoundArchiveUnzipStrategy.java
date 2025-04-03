@@ -2,13 +2,22 @@ package com.yuxie.common.compress.strategy.impl;
 
 import com.yuxie.common.compress.callback.UnzipProgressCallback;
 import com.yuxie.common.compress.config.UnzipConfig;
+import com.yuxie.common.compress.exception.UnzipErrorCode;
 import com.yuxie.common.compress.exception.UnzipException;
 import com.yuxie.common.compress.format.CompressionFormat;
 import com.yuxie.common.compress.format.CompressionFormatDetector;
 import com.yuxie.common.compress.model.FileInfo;
 import com.yuxie.common.compress.strategy.UnzipStrategy;
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
+import com.yuxie.common.compress.util.UnzipUtils;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.compress.archivers.ArchiveEntry;
+import org.apache.commons.compress.archivers.ArchiveInputStream;
+import org.apache.commons.compress.archivers.ArchiveStreamFactory;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.compressors.CompressorInputStream;
+import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
 import org.apache.commons.io.IOUtils;
 
@@ -21,6 +30,7 @@ import java.util.Map;
  * 复合压缩格式解压策略
  * 用于处理tar.gz、tar.bz2、tar.xz等复合压缩格式
  */
+@Slf4j
 public class CompoundArchiveUnzipStrategy implements UnzipStrategy {
     
     private final UnzipConfig unzipConfig;
@@ -113,15 +123,9 @@ public class CompoundArchiveUnzipStrategy implements UnzipStrategy {
     }
     
     private boolean isSupportedFormat(CompressionFormat format) {
-        if (format == null) {
-            return false;
-        }
-        for (CompressionFormat supportedFormat : getSupportedFormats()) {
-            if (supportedFormat == format) {
-                return true;
-            }
-        }
-        return false;
+        return format == CompressionFormat.TAR_GZ 
+            || format == CompressionFormat.TAR_BZ2 
+            || format == CompressionFormat.TAR_XZ;
     }
     
     @Override

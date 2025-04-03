@@ -2,12 +2,16 @@ package com.yuxie.common.compress.strategy.impl;
 
 import com.yuxie.common.compress.config.UnzipConfig;
 import com.yuxie.common.compress.format.CompressionFormat;
-import net.sf.sevenzipjbinding.*;
+import org.apache.commons.compress.archivers.ArchiveInputStream;
+import org.apache.commons.compress.archivers.ArchiveStreamFactory;
+import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
+
+import java.io.InputStream;
 
 /**
- * ZIP格式解压策略
+ * ZIP格式解压策略实现
  */
-public class ZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
+public class ZipUnzipStrategy extends AbstractCommonsCompressStrategy {
     
     /**
      * 构造函数
@@ -24,17 +28,12 @@ public class ZipUnzipStrategy extends AbstractArchiveUnzipStrategy {
     }
     
     @Override
-    protected String getTempFileExtension() {
-        return ".zip";
-    }
-    
-    @Override
-    protected IInArchive openArchive(IInStream inStream) throws SevenZipException {
-        return SevenZip.openInArchive(ArchiveFormat.ZIP, inStream);
-    }
-    
-    @Override
     public CompressionFormat[] getSupportedFormats() {
         return new CompressionFormat[]{CompressionFormat.ZIP};
+    }
+    
+    @Override
+    protected ArchiveInputStream createArchiveInputStream(InputStream inputStream) throws Exception {
+        return new ArchiveStreamFactory().createArchiveInputStream(ArchiveStreamFactory.ZIP, inputStream);
     }
 } 

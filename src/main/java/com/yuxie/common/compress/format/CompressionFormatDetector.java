@@ -6,12 +6,36 @@ import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * 压缩格式检测器
  * 用于自动检测压缩文件的格式
  */
 public class CompressionFormatDetector {
+    
+    private static final Map<CompressionFormat, FormatDetector> detectors = new HashMap<>();
+    
+    static {
+        // 注册单一格式检测器
+        detectors.put(CompressionFormat.ZIP, data -> isZip(data));
+        detectors.put(CompressionFormat.RAR, data -> isRar(data));
+        detectors.put(CompressionFormat.SEVEN_ZIP, data -> isSevenZip(data));
+        detectors.put(CompressionFormat.TAR, data -> isTar(data));
+        detectors.put(CompressionFormat.GZIP, data -> isGzip(data));
+        detectors.put(CompressionFormat.BZIP2, data -> isBzip2(data));
+        detectors.put(CompressionFormat.XZ, data -> isXz(data));
+        detectors.put(CompressionFormat.LZMA, data -> isLzma(data));
+        detectors.put(CompressionFormat.SNAPPY, data -> isSnappy(data));
+        detectors.put(CompressionFormat.LZ4, data -> isLz4(data));
+        
+        // 注册复合格式检测器
+        detectors.put(CompressionFormat.TAR_GZ, data -> isTarGz(data));
+        detectors.put(CompressionFormat.TAR_BZ2, data -> isTarBz2(data));
+        detectors.put(CompressionFormat.TAR_XZ, data -> isTarXz(data));
+    }
     
     /**
      * 检测压缩文件格式
@@ -24,50 +48,28 @@ public class CompressionFormatDetector {
             return CompressionFormat.UNKNOWN;
         }
         
-        // 检查复合格式
-        if (isGzippedTar(data)) {
-            return CompressionFormat.TAR_GZ;
-        }
-        if (isBzip2Tar(data)) {
-            return CompressionFormat.TAR_BZ2;
-        }
-        if (isXzTar(data)) {
-            return CompressionFormat.TAR_XZ;
+        // 先检查单一格式
+        for (Map.Entry<CompressionFormat, FormatDetector> entry : detectors.entrySet()) {
+            if (!entry.getKey().isCompound() && entry.getValue().detect(data)) {
+                return entry.getKey();
+            }
         }
         
-        // 检查单一格式
-        if (isZip(data)) {
-            return CompressionFormat.ZIP;
-        }
-        if (isRar(data)) {
-            return CompressionFormat.RAR;
-        }
-        if (isSevenZip(data)) {
-            return CompressionFormat.SEVEN_ZIP;
-        }
-        if (isTar(data)) {
-            return CompressionFormat.TAR;
-        }
-        if (isGzip(data)) {
-            return CompressionFormat.GZIP;
-        }
-        if (isBzip2(data)) {
-            return CompressionFormat.BZIP2;
-        }
-        if (isXz(data)) {
-            return CompressionFormat.XZ;
-        }
-        if (isLzma(data)) {
-            return CompressionFormat.LZMA;
-        }
-        if (isSnappy(data)) {
-            return CompressionFormat.SNAPPY;
-        }
-        if (isLz4(data)) {
-            return CompressionFormat.LZ4;
+        // 再检查复合格式
+        for (Map.Entry<CompressionFormat, FormatDetector> entry : detectors.entrySet()) {
+            if (entry.getKey().isCompound() && entry.getValue().detect(data)) {
+                return entry.getKey();
+            }
         }
         
         return CompressionFormat.UNKNOWN;
+    }
+    
+    /**
+     * 格式检测器接口
+     */
+    private interface FormatDetector {
+        boolean detect(byte[] data);
     }
     
     /**
@@ -86,7 +88,6 @@ public class CompressionFormatDetector {
     
     /**
      * 检查是否为7Z格式
-     * 7Z文件魔数：7z\xBC\xAF\x27\x1C
      */
     private static boolean isSevenZip(byte[] data) {
         return data.length >= 6 &&
@@ -102,7 +103,6 @@ public class CompressionFormatDetector {
      * 检查是否为TAR格式
      */
     private static boolean isTar(byte[] data) {
-        // TAR文件头以文件名开始，以null字节结束
         return data[99] == 0 && data[100] == 0 && data[101] == 0;
     }
     
@@ -134,24 +134,28 @@ public class CompressionFormatDetector {
         return data[0] == 0x5D && data[1] == 0x00 && data[2] == 0x00;
     }
     
+    /**
+     * 检查是否为Snappy格式
+     */
     private static boolean isSnappy(byte[] data) {
         return data.length >= 4 && data[0] == (byte) 0x82 && data[1] == 'S' && data[2] == 'N' && data[3] == 'A';
     }
     
+    /**
+     * 检查是否为LZ4格式
+     */
     private static boolean isLz4(byte[] data) {
         return data.length >= 4 && data[0] == 0x04 && data[1] == 0x22 && data[2] == 0x4D && data[3] == 0x18;
     }
     
     /**
-     * 检查是否为GZIP压缩的TAR文件
+     * 检查是否为TAR.GZ格式
      */
-    private static boolean isGzippedTar(byte[] data) {
-        // GZIP 魔数: 1f 8b
-        if (data[0] != 0x1F || data[1] != (byte)0x8B) {
+    private static boolean isTarGz(byte[] data) {
+        if (!isGzip(data)) {
             return false;
         }
         
-        // 尝试解压前512字节检查是否为TAR格式
         try (GzipCompressorInputStream gzipIn = new GzipCompressorInputStream(new ByteArrayInputStream(data))) {
             byte[] tarHeader = new byte[512];
             int read = gzipIn.read(tarHeader);
@@ -162,11 +166,10 @@ public class CompressionFormatDetector {
     }
     
     /**
-     * 检查是否为BZIP2压缩的TAR文件
+     * 检查是否为TAR.BZ2格式
      */
-    private static boolean isBzip2Tar(byte[] data) {
-        // BZip2 魔数: 42 5a 68 ('BZh')
-        if (data[0] != 0x42 || data[1] != 0x5A || data[2] != 0x68) {
+    private static boolean isTarBz2(byte[] data) {
+        if (!isBzip2(data)) {
             return false;
         }
         
@@ -180,12 +183,10 @@ public class CompressionFormatDetector {
     }
     
     /**
-     * 检查是否为XZ压缩的TAR文件
+     * 检查是否为TAR.XZ格式
      */
-    private static boolean isXzTar(byte[] data) {
-        // XZ 魔数: fd 37 7a 58 5a 00
-        if (data[0] != (byte)0xFD || data[1] != 0x37 || data[2] != 0x7A || 
-            data[3] != 0x58 || data[4] != 0x5A || data[5] != 0x00) {
+    private static boolean isTarXz(byte[] data) {
+        if (!isXz(data)) {
             return false;
         }
         

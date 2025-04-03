@@ -30,7 +30,7 @@ public class UnzipConfig {
      * 默认值为 100MB
      */
     @Builder.Default
-    private long maxFileSize = 1024L * 1024L * 100L;
+    private long maxFileSize = 1024L * 1024L * 100L; // 100MB
     
     /**
      * 缓冲区大小
@@ -51,7 +51,23 @@ public class UnzipConfig {
      * 包含所有允许解压的文件扩展名
      */
     @Builder.Default
-    private Set<String> allowedFileTypes = new HashSet<>();
+    private Set<String> allowedFileTypes = new HashSet<String>() {{
+        add("txt");
+        add("log");
+        add("json");
+        add("xml");
+        add("csv");
+        add("md");
+        add("properties");
+        add("java");
+        add("py");
+        add("js");
+        add("html");
+        add("css");
+        add("sql");
+        add("sh");
+        add("bat");
+    }};
     
     /**
      * 最大文件数量
@@ -145,6 +161,12 @@ public class UnzipConfig {
     private long maxCompoundFileSize = 1024L * 1024L * 200L;
     
     /**
+     * 最大路径长度
+     */
+    @Builder.Default
+    private int maxPathLength = 255;
+    
+    /**
      * 验证配置参数的有效性
      *
      * @throws IllegalArgumentException 当配置参数无效时抛出异常
@@ -177,7 +199,7 @@ public class UnzipConfig {
      */
     public static UnzipConfig getDefaultConfig() {
         UnzipConfig config = UnzipConfig.builder()
-            .maxFileSize(1024L * 1024L * 100L)
+            .maxFileSize(1024L * 1024L * 100L) // 100MB
             .bufferSize(8192)
             .tempDirectory(System.getProperty("java.io.tmpdir"))
             .allowedFileTypes(getDefaultAllowedFileTypes())
@@ -194,6 +216,7 @@ public class UnzipConfig {
             .enableVirusScan(false)
             .enableCompoundFormatDetection(true)
             .maxCompoundFileSize(1024L * 1024L * 200L)
+            .maxPathLength(255)
             .build();
             
         config.validate();

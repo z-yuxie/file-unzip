@@ -12,7 +12,7 @@
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <sevenzip.version>9.20-2.00beta</sevenzip.version>
+        <sevenzip.version>16.02-2.01</sevenzip.version>
         <commons.compress.version>1.24.0</commons.compress.version>
         <commons.io.version>2.11.0</commons.io.version>
         <lombok.version>1.18.30</lombok.version>
@@ -28,7 +28,7 @@
     </repositories>
 
     <dependencies>
-        <!-- 7-Zip-JBinding -->
+        <!-- 7-Zip-JBinding - 用于处理RAR和7Z格式 -->
         <dependency>
             <groupId>net.sf.sevenzipjbinding</groupId>
             <artifactId>sevenzipjbinding</artifactId>
@@ -92,6 +92,20 @@
             <artifactId>mockito-junit-jupiter</artifactId>
             <version>${mockito.version}</version>
             <scope>test</scope>
+        </dependency>
+
+        <!-- Apache Tika - 用于文件类型检测 -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>2.9.1</version>
+        </dependency>
+
+        <!-- XZ for Java - 用于处理.xz和.tar.xz文件 -->
+        <dependency>
+            <groupId>org.tukaani</groupId>
+            <artifactId>xz</artifactId>
+            <version>1.9</version>
         </dependency>
     </dependencies>
 

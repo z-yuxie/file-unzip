@@ -1,7 +1,6 @@
 package com.yuxie.common.compress.strategy.impl;
 
 import com.yuxie.common.compress.config.UnzipConfig;
-import com.yuxie.common.compress.exception.UnzipException;
 import com.yuxie.common.compress.format.CompressionFormat;
 import com.yuxie.common.compress.strategy.UnzipStrategy;
 import com.yuxie.common.compress.strategy.UnzipStrategyFactory;
@@ -16,40 +15,35 @@ import java.util.Map;
 @Slf4j
 public class DefaultUnzipStrategyFactory implements UnzipStrategyFactory {
     
-    private final Map<CompressionFormat, UnzipStrategy> strategies;
     private final UnzipConfig unzipConfig;
+    private final Map<CompressionFormat, UnzipStrategy> strategyMap;
     
-    /**
-     * 构造函数
-     *
-     * @param unzipConfig 解压配置
-     */
     public DefaultUnzipStrategyFactory(UnzipConfig unzipConfig) {
-        if (unzipConfig == null) {
-            throw new IllegalArgumentException("解压配置不能为空");
-        }
         this.unzipConfig = unzipConfig;
-        this.strategies = new HashMap<>();
-        initDefaultStrategies();
+        this.strategyMap = new HashMap<>();
+        initializeStrategies();
     }
     
-    private void initDefaultStrategies() {
-        // 注册基本格式策略
-        registerStrategy(CompressionFormat.ZIP, new ZipUnzipStrategy(unzipConfig));
-        registerStrategy(CompressionFormat.RAR, new RarUnzipStrategy(unzipConfig));
-        registerStrategy(CompressionFormat.SEVEN_ZIP, new SevenZipUnzipStrategy(unzipConfig));
-        registerStrategy(CompressionFormat.TAR, new TarUnzipStrategy(unzipConfig));
+    /**
+     * 初始化解压策略
+     */
+    private void initializeStrategies() {
+        // 注册ZIP解压策略
+        registerStrategy(new ZipUnzipStrategy(unzipConfig));
         
-        // 注册复合格式策略
-        CompoundArchiveUnzipStrategy compoundStrategy = new CompoundArchiveUnzipStrategy(unzipConfig);
-        for (CompressionFormat format : compoundStrategy.getSupportedFormats()) {
-            registerStrategy(format, compoundStrategy);
-        }
+        // 注册TAR解压策略
+        registerStrategy(new TarUnzipStrategy(unzipConfig));
         
-        // 注册单文件压缩格式策略
-        CompressedFileUnzipStrategy compressedStrategy = new CompressedFileUnzipStrategy(unzipConfig);
-        for (CompressionFormat format : compressedStrategy.getSupportedFormats()) {
-            registerStrategy(format, compressedStrategy);
+        // 注册复合压缩格式解压策略
+        registerStrategy(new CompoundArchiveUnzipStrategy(unzipConfig));
+    }
+    
+    /**
+     * 注册解压策略
+     */
+    private void registerStrategy(UnzipStrategy strategy) {
+        for (CompressionFormat format : strategy.getSupportedFormats()) {
+            registerStrategy(format, strategy);
         }
     }
     
@@ -61,19 +55,21 @@ public class DefaultUnzipStrategyFactory implements UnzipStrategyFactory {
         if (strategy == null) {
             throw new IllegalArgumentException("解压策略不能为空");
         }
-        strategies.put(format, strategy);
+        strategyMap.put(format, strategy);
         log.info("注册解压策略: {} -> {}", format, strategy.getClass().getSimpleName());
     }
     
     @Override
-    public UnzipStrategy getStrategy(CompressionFormat format) throws UnzipException {
+    public UnzipStrategy getStrategy(CompressionFormat format) {
         if (format == null) {
             throw new IllegalArgumentException("压缩格式不能为空");
         }
-        UnzipStrategy strategy = strategies.get(format);
+        
+        UnzipStrategy strategy = strategyMap.get(format);
         if (strategy == null) {
-            throw new UnzipException("不支持的压缩格式: " + format);
+            throw new IllegalArgumentException("不支持的压缩格式: " + format);
         }
+        
         return strategy;
     }
     
@@ -82,7 +78,7 @@ public class DefaultUnzipStrategyFactory implements UnzipStrategyFactory {
         if (format == null) {
             throw new IllegalArgumentException("压缩格式不能为空");
         }
-        UnzipStrategy strategy = strategies.remove(format);
+        UnzipStrategy strategy = strategyMap.remove(format);
         if (strategy != null) {
             log.info("移除解压策略: {} -> {}", format, strategy.getClass().getSimpleName());
         }
@@ -93,40 +89,6 @@ public class DefaultUnzipStrategyFactory implements UnzipStrategyFactory {
         if (format == null) {
             return false;
         }
-        return strategies.containsKey(format);
-    }
-    
-    /**
-     * 创建解压策略
-     *
-     * @param format 压缩格式
-     * @return 解压策略
-     * @throws UnzipException 当不支持指定格式时抛出异常
-     */
-    public UnzipStrategy createStrategy(CompressionFormat format) throws UnzipException {
-        if (format == null) {
-            throw new IllegalArgumentException("压缩格式不能为空");
-        }
-        
-        UnzipStrategy strategy = strategies.get(format);
-        if (strategy != null) {
-            return strategy;
-        }
-
-        switch (format) {
-            case ZIP:
-                return new ZipUnzipStrategy(unzipConfig);
-            case RAR:
-                return new RarUnzipStrategy(unzipConfig);
-            case TAR:
-            case TAR_GZ:
-            case TAR_BZ2:
-            case TAR_XZ:
-                return new TarUnzipStrategy(unzipConfig);
-            case SEVEN_ZIP:
-                return new SevenZipUnzipStrategy(unzipConfig);
-            default:
-                return new CompressedFileUnzipStrategy(unzipConfig);
-        }
+        return strategyMap.containsKey(format);
     }
 } 
