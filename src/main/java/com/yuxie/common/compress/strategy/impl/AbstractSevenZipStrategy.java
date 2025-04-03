@@ -16,7 +16,6 @@ import net.sf.sevenzipjbinding.simple.ISimpleInArchiveItem;
 
 import java.io.*;
 import java.util.*;
-import java.util.Date;
 
 /**
  * 基于7-Zip-JBinding的压缩文件解压抽象基类

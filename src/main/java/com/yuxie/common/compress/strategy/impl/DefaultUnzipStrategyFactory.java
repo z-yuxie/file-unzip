@@ -31,11 +31,17 @@ public class DefaultUnzipStrategyFactory implements UnzipStrategyFactory {
         // 注册ZIP解压策略
         registerStrategy(new ZipUnzipStrategy(unzipConfig));
         
+        // 注册RAR解压策略
+        registerStrategy(new RarUnzipStrategy(unzipConfig));
+        
+        // 注册7Z解压策略
+        registerStrategy(new SevenZipUnzipStrategy(unzipConfig));
+        
         // 注册TAR解压策略
         registerStrategy(new TarUnzipStrategy(unzipConfig));
         
-        // 注册复合压缩格式解压策略
-        registerStrategy(new CompoundArchiveUnzipStrategy(unzipConfig));
+        // 注册压缩文件解压策略
+        registerStrategy(new CompressedFileUnzipStrategy(unzipConfig));
     }
     
     /**
@@ -61,16 +67,12 @@ public class DefaultUnzipStrategyFactory implements UnzipStrategyFactory {
     
     @Override
     public UnzipStrategy getStrategy(CompressionFormat format) {
-        if (format == null) {
-            throw new IllegalArgumentException("压缩格式不能为空");
-        }
-        
-        UnzipStrategy strategy = strategyMap.get(format);
-        if (strategy == null) {
-            throw new IllegalArgumentException("不支持的压缩格式: " + format);
-        }
-        
-        return strategy;
+        return strategyMap.get(format);
+    }
+    
+    @Override
+    public boolean supportsFormat(CompressionFormat format) {
+        return strategyMap.containsKey(format);
     }
     
     @Override
@@ -82,13 +84,5 @@ public class DefaultUnzipStrategyFactory implements UnzipStrategyFactory {
         if (strategy != null) {
             log.info("移除解压策略: {} -> {}", format, strategy.getClass().getSimpleName());
         }
-    }
-    
-    @Override
-    public boolean supportsFormat(CompressionFormat format) {
-        if (format == null) {
-            return false;
-        }
-        return strategyMap.containsKey(format);
     }
 } 

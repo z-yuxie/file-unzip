@@ -8,7 +8,6 @@ import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.ArchiveInputStream;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -101,21 +100,6 @@ public class UnzipUtils {
         }
         
         return path.substring(lastDot);
-    }
-    
-    /**
-     * 读取输入流数据
-     */
-    public static byte[] readInputStream(InputStream inputStream, int bufferSize) throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        byte[] buffer = new byte[bufferSize];
-        int bytesRead;
-        
-        while ((bytesRead = inputStream.read(buffer)) != -1) {
-            outputStream.write(buffer, 0, bytesRead);
-        }
-        
-        return outputStream.toByteArray();
     }
     
     /**
@@ -249,49 +233,54 @@ public class UnzipUtils {
      */
     public static void checkMemoryUsage() throws UnzipException {
         Runtime runtime = Runtime.getRuntime();
-        long maxMemory = runtime.maxMemory();
-        long usedMemory = runtime.totalMemory() - runtime.freeMemory();
-        double memoryUsage = (double) usedMemory / maxMemory;
+        long totalMemory = runtime.totalMemory();
+        long freeMemory = runtime.freeMemory();
+        long usedMemory = totalMemory - freeMemory;
+        double memoryUsage = (double) usedMemory / totalMemory;
         
         if (memoryUsage > MEMORY_THRESHOLD) {
-            throw new UnzipException("内存使用率过高: " + (memoryUsage * 100) + "%");
+            throw new UnzipException(UnzipErrorCode.MEMORY_ERROR,
+                String.format("内存使用率过高: %.2f%% > %.2f%%", memoryUsage * 100, MEMORY_THRESHOLD * 100));
         }
     }
     
     /**
-     * 创建临时文件并写入输入流的内容
+     * 创建临时文件
      *
      * @param inputStream 输入流
      * @param tempDirectory 临时目录
      * @param extension 文件扩展名
      * @param config 解压配置
-     * @return 创建的临时文件
-     * @throws UnzipException 当创建或写入失败时抛出异常
+     * @return 临时文件
+     * @throws UnzipException 当创建失败时抛出异常
      */
     public static File createTempFile(InputStream inputStream, String tempDirectory, 
             String extension, UnzipConfig config) throws UnzipException {
         try {
+            // 创建临时文件
             File tempFile = File.createTempFile("unzip_", extension, new File(tempDirectory));
-            tempFile.deleteOnExit();
             
-            byte[] buffer = new byte[config.getBufferSize()];
-            int bytesRead;
-            long totalBytesRead = 0;
-            
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                totalBytesRead += bytesRead;
-                validateFileSize(totalBytesRead, config);
+            // 写入数据
+            try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                byte[] buffer = new byte[config.getBufferSize()];
+                int bytesRead;
+                long totalBytesRead = 0;
                 
-                // 写入文件
-                try (RandomAccessFile raf = new RandomAccessFile(tempFile, "rw")) {
-                    raf.seek(raf.length());
-                    raf.write(buffer, 0, bytesRead);
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    fos.write(buffer, 0, bytesRead);
+                    totalBytesRead += bytesRead;
+                    
+                    // 检查文件大小
+                    if (config.isEnableFileSizeCheck() && totalBytesRead > config.getMaxFileSize()) {
+                        throw new UnzipException(UnzipErrorCode.FILE_TOO_LARGE,
+                            String.format("文件大小超过限制: %d > %d", totalBytesRead, config.getMaxFileSize()));
+                    }
                 }
             }
             
             return tempFile;
         } catch (IOException e) {
-            throw new UnzipException("创建临时文件失败", e);
+            throw new UnzipException(UnzipErrorCode.IO_ERROR, "创建临时文件失败: " + e.getMessage(), e);
         }
     }
 } 

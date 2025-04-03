@@ -6,13 +6,12 @@ import com.yuxie.common.compress.exception.UnzipErrorCode;
 import com.yuxie.common.compress.exception.UnzipException;
 import com.yuxie.common.compress.format.CompressionFormat;
 import com.yuxie.common.compress.format.CompressionFormatDetector;
-import com.yuxie.common.compress.format.CompressionDecompressorFactory;
 import com.yuxie.common.compress.model.FileInfo;
 import com.yuxie.common.compress.monitor.UnzipMetrics;
 import com.yuxie.common.compress.strategy.UnzipStrategy;
 import com.yuxie.common.compress.strategy.UnzipStrategyFactory;
 import com.yuxie.common.compress.strategy.impl.DefaultUnzipStrategyFactory;
-import com.yuxie.common.compress.util.UnzipUtils;
+import com.yuxie.common.compress.util.CompressionCompositeInputStream;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
 import org.apache.tika.mime.MediaType;
@@ -38,6 +37,8 @@ import java.util.Map;
  * 9. BZIP2 (.bz2)
  * 10. XZ (.xz)
  * 11. LZMA (.lzma)
+ * 12. SNAPPY (.snappy)
+ * 13. LZ4 (.lz4)
  */
 @Slf4j
 public class UnzipService implements AutoCloseable {
@@ -91,11 +92,6 @@ public class UnzipService implements AutoCloseable {
 
     /**
      * 内部解压方法，处理公共的解压逻辑
-     *
-     * @param data 压缩文件数据
-     * @param callback 进度回调（可选）
-     * @return 解压后的文件信息及其内容
-     * @throws UnzipException 解压异常
      */
     private Map<FileInfo, byte[]> unzipInternal(byte[] data, UnzipProgressCallback callback) throws UnzipException {
         if (data == null || data.length == 0) {
@@ -109,22 +105,28 @@ public class UnzipService implements AutoCloseable {
         long startTime = System.currentTimeMillis();
 
         try {
+            // 创建输入流
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
+            
+            // 使用复合输入流管理资源
+            CompressionCompositeInputStream compositeInputStream = new CompressionCompositeInputStream(inputStream);
+            
             // 检测压缩格式
-            CompressionFormat format = CompressionFormatDetector.detect(data);
+            CompressionFormat format = CompressionFormatDetector.detectFormat(compositeInputStream);
             if (format == CompressionFormat.UNKNOWN) {
                 throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "无法识别的压缩格式");
             }
 
             // 获取对应的解压策略
             UnzipStrategy strategy = strategyFactory.getStrategy(format);
-
-            // 创建输入流并执行解压
-            Map<FileInfo, byte[]> result;
-            try (InputStream inputStream = createInputStream(data, format)) {
-                result = callback != null ?
-                    strategy.unzip(inputStream, callback) :
-                    strategy.unzip(inputStream);
+            if (strategy == null) {
+                throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "不支持的压缩格式: " + format);
             }
+
+            // 执行解压
+            Map<FileInfo, byte[]> result = callback != null ?
+                strategy.unzip(compositeInputStream, callback) :
+                strategy.unzip(compositeInputStream);
 
             // 记录指标
             recordMetrics(startTime, data.length, result.size());
@@ -139,18 +141,6 @@ public class UnzipService implements AutoCloseable {
             }
             throw new UnzipException(UnzipErrorCode.IO_ERROR, "文件解压失败: " + e.getMessage(), e);
         }
-    }
-
-    /**
-     * 创建输入流
-     */
-    private InputStream createInputStream(byte[] data, CompressionFormat format) throws IOException {
-        if (format == CompressionFormat.ZIP
-                || format == CompressionFormat.SEVEN_ZIP
-                || format == CompressionFormat.RAR) {
-            return new ByteArrayInputStream(data);
-        }
-        return CompressionDecompressorFactory.createDecompressor(data, format);
     }
 
     private void recordMetrics(long startTime, long dataSize, int fileCount) {
@@ -200,16 +190,11 @@ public class UnzipService implements AutoCloseable {
             throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "输入流不能为空");
         }
 
-        // 读取输入流数据
-        byte[] data;
-        try {
-            data = readInputStream(inputStream);
-        } catch (IOException e) {
-            throw new UnzipException(UnzipErrorCode.IO_ERROR, "读取输入流失败", e);
-        }
-
+        // 使用复合输入流管理资源
+        CompressionCompositeInputStream compositeInputStream = new CompressionCompositeInputStream(inputStream);
+        
         // 检测压缩格式
-        CompressionFormat format = detectFormat(inputStream);
+        CompressionFormat format = detectFormat(compositeInputStream);
         if (format == null) {
             throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "无法识别的压缩格式");
         }
@@ -222,7 +207,7 @@ public class UnzipService implements AutoCloseable {
 
         try {
             // 执行解压
-            Map<FileInfo, byte[]> result = strategy.unzip(inputStream, password, callback);
+            Map<FileInfo, byte[]> result = strategy.unzip(compositeInputStream, password, callback);
 
             // 如果指定了目标路径，将文件写入磁盘
             if (targetPath != null && !targetPath.trim().isEmpty()) {
@@ -243,21 +228,6 @@ public class UnzipService implements AutoCloseable {
                 log.warn("关闭解压策略失败: {}", e.getMessage());
             }
         }
-    }
-
-    /**
-     * 读取输入流数据
-     */
-    private byte[] readInputStream(InputStream inputStream) throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        byte[] buffer = new byte[unzipConfig.getBufferSize()];
-        int bytesRead;
-
-        while ((bytesRead = inputStream.read(buffer)) != -1) {
-            outputStream.write(buffer, 0, bytesRead);
-        }
-
-        return outputStream.toByteArray();
     }
 
     /**
@@ -291,26 +261,6 @@ public class UnzipService implements AutoCloseable {
     }
 
     /**
-     * 检查是否为复合格式
-     */
-    private boolean isCompoundFormat(InputStream inputStream) throws IOException {
-        // 读取前几个字节
-        byte[] header = new byte[4];
-        int bytesRead = inputStream.read(header);
-        if (bytesRead < 4) {
-            return false;
-        }
-        
-        // 检查是否为tar格式
-        // tar格式的头部通常以"ustar"或"ustar  "结尾
-        if (header[0] == 'u' && header[1] == 's' && header[2] == 't' && header[3] == 'a') {
-            return true;
-        }
-        
-        return false;
-    }
-
-    /**
      * 检测压缩格式
      */
     private CompressionFormat detectFormat(InputStream inputStream) throws UnzipException {
@@ -327,22 +277,10 @@ public class UnzipService implements AutoCloseable {
                     return CompressionFormat.TAR;
                 case "application/gzip":
                 case "application/x-gzip":
-                    // 检查是否为复合格式
-                    if (isCompoundFormat(inputStream)) {
-                        return CompressionFormat.TAR_GZ;
-                    }
                     return CompressionFormat.GZIP;
                 case "application/x-bzip2":
-                    // 检查是否为复合格式
-                    if (isCompoundFormat(inputStream)) {
-                        return CompressionFormat.TAR_BZ2;
-                    }
                     return CompressionFormat.BZIP2;
                 case "application/x-xz":
-                    // 检查是否为复合格式
-                    if (isCompoundFormat(inputStream)) {
-                        return CompressionFormat.TAR_XZ;
-                    }
                     return CompressionFormat.XZ;
                 case "application/x-rar-compressed":
                     return CompressionFormat.RAR;

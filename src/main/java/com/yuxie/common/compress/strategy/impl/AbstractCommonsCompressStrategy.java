@@ -7,11 +7,11 @@ import com.yuxie.common.compress.exception.UnzipException;
 import com.yuxie.common.compress.format.CompressionFormat;
 import com.yuxie.common.compress.model.FileInfo;
 import com.yuxie.common.compress.strategy.UnzipStrategy;
+import com.yuxie.common.compress.util.CompressionCompositeInputStream;
 import com.yuxie.common.compress.util.UnzipUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.ArchiveInputStream;
-import org.apache.commons.compress.archivers.ArchiveStreamFactory;
 
 import java.io.*;
 import java.util.*;
@@ -57,7 +57,7 @@ public abstract class AbstractCommonsCompressStrategy implements UnzipStrategy {
      *
      * @param inputStream 输入流
      * @return ArchiveInputStream实例
-     * @throws ArchiveException 当创建失败时抛出异常
+     * @throws Exception 当创建失败时抛出异常
      */
     protected abstract ArchiveInputStream createArchiveInputStream(InputStream inputStream) throws Exception;
     
@@ -82,15 +82,10 @@ public abstract class AbstractCommonsCompressStrategy implements UnzipStrategy {
             throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "输入流不能为空");
         }
 
-        // 读取输入流数据
-        byte[] data;
-        try {
-            data = readInputStream(inputStream);
-        } catch (IOException e) {
-            throw new UnzipException(UnzipErrorCode.IO_ERROR, "读取输入流失败", e);
-        }
-
-        try (ArchiveInputStream archiveInputStream = createArchiveInputStream(new ByteArrayInputStream(data))) {
+        // 使用复合输入流管理资源
+        CompressionCompositeInputStream compositeInputStream = new CompressionCompositeInputStream(inputStream);
+        
+        try (ArchiveInputStream archiveInputStream = createArchiveInputStream(compositeInputStream)) {
             // 获取所有条目
             List<ArchiveEntry> entries = new ArrayList<>();
             ArchiveEntry entry;
@@ -106,7 +101,7 @@ public abstract class AbstractCommonsCompressStrategy implements UnzipStrategy {
 
             // 通知开始解压
             if (callback != null) {
-                callback.onStart(data.length, entries.size());
+                callback.onStart(compositeInputStream.available(), entries.size());
             }
 
             // 解压文件
@@ -148,7 +143,7 @@ public abstract class AbstractCommonsCompressStrategy implements UnzipStrategy {
                 currentFile++;
                 totalBytesRead += content.length;
                 if (callback != null) {
-                    callback.onProgress(fileInfo.getFileName(), totalBytesRead, data.length, currentFile, entries.size());
+                    callback.onProgress(fileInfo.getFileName(), totalBytesRead, compositeInputStream.available(), currentFile, entries.size());
                 }
             }
 
@@ -176,21 +171,6 @@ public abstract class AbstractCommonsCompressStrategy implements UnzipStrategy {
         int bytesRead;
         
         while ((bytesRead = archiveInputStream.read(buffer)) != -1) {
-            outputStream.write(buffer, 0, bytesRead);
-        }
-        
-        return outputStream.toByteArray();
-    }
-
-    /**
-     * 读取输入流数据
-     */
-    protected byte[] readInputStream(InputStream inputStream) throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        byte[] buffer = new byte[unzipConfig.getBufferSize()];
-        int bytesRead;
-        
-        while ((bytesRead = inputStream.read(buffer)) != -1) {
             outputStream.write(buffer, 0, bytesRead);
         }
         

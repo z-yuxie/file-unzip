@@ -1,7 +1,6 @@
 package com.yuxie.common.compress.util;
 
 import com.yuxie.common.compress.exception.CompressionException;
-import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;

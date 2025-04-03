@@ -3,105 +3,96 @@ package com.yuxie.common.compress.format;
 import lombok.Getter;
 
 /**
- * 压缩文件格式枚举
- * 定义了系统支持的所有压缩文件格式
+ * 压缩格式枚举
+ * 支持以下格式：
+ * 1. ZIP (.zip)
+ * 2. RAR (.rar)
+ * 3. SEVEN_ZIP (.7z)
+ * 4. TAR (.tar)
+ * 5. GZIP (.gz)
+ * 6. BZIP2 (.bz2)
+ * 7. XZ (.xz)
+ * 8. LZMA (.lzma)
+ * 9. SNAPPY (.snappy)
+ * 10. LZ4 (.lz4)
  */
 @Getter
 public enum CompressionFormat {
     /**
      * ZIP格式
      */
-    ZIP(".zip", false),
-    
-    /**
-     * TAR格式
-     */
-    TAR(".tar", false),
-    
-    /**
-     * GZIP格式
-     */
-    GZIP(".gz", false),
-    
-    /**
-     * BZIP2格式
-     */
-    BZIP2(".bz2", false),
-    
-    /**
-     * XZ格式
-     */
-    XZ(".xz", false),
+    ZIP("zip"),
     
     /**
      * RAR格式
      */
-    RAR(".rar", false),
+    RAR("rar"),
     
     /**
-     * 7Z格式
+     * SEVEN_ZIP格式
      */
-    SEVEN_ZIP(".7z", false),
+    SEVEN_ZIP("7z"),
     
     /**
-     * TAR.GZ格式
+     * TAR格式
      */
-    TAR_GZ(".tar.gz", true),
+    TAR("tar"),
     
     /**
-     * TAR.BZ2格式
+     * GZIP格式
      */
-    TAR_BZ2(".tar.bz2", true),
+    GZIP("gz"),
     
     /**
-     * TAR.XZ格式
+     * BZIP2格式
      */
-    TAR_XZ(".tar.xz", true),
+    BZIP2("bz2"),
+    
+    /**
+     * XZ格式
+     */
+    XZ("xz"),
     
     /**
      * LZMA格式
      */
-    LZMA(".lzma", false),
+    LZMA("lzma"),
     
     /**
-     * Snappy格式
+     * SNAPPY格式
      */
-    SNAPPY(".snappy", false),
+    SNAPPY("snappy"),
     
     /**
      * LZ4格式
      */
-    LZ4(".lz4", false),
-    
-    /**
-     * 通用复合格式（用于检测阶段）
-     */
-    COMPOUND(null, true),
+    LZ4("lz4"),
     
     /**
      * 未知格式
      */
-    UNKNOWN(null, false);
+    UNKNOWN(null);
     
     private final String extension;
-    private final boolean isCompound;
     
-    CompressionFormat(String extension, boolean isCompound) {
+    CompressionFormat(String extension) {
         this.extension = extension;
-        this.isCompound = isCompound;
     }
     
-    /**
-     * 检查格式是否有文件扩展名
-     */
-    public boolean hasExtension() {
-        return extension != null;
+    public String getExtension() {
+        return extension;
     }
-    
-    /**
-     * 检查是否为复合格式
-     */
-    public boolean isCompound() {
-        return isCompound;
+
+    public static CompressionFormat fromExtension(String extension) {
+        if (extension == null || extension.isEmpty()) {
+            return UNKNOWN;
+        }
+        String ext = extension.toLowerCase();
+        for (CompressionFormat format : values()) {
+            if (ext.equals(format.extension)) {
+                return format;
+            }
+        }
+        return UNKNOWN;
     }
 } 

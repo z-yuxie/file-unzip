@@ -4,13 +4,13 @@ import com.yuxie.common.compress.callback.UnzipProgressCallback;
 import com.yuxie.common.compress.config.UnzipConfig;
 import com.yuxie.common.compress.exception.UnzipException;
 import com.yuxie.common.compress.format.CompressionFormat;
+import com.yuxie.common.compress.format.CompressionFormatDetector;
 import com.yuxie.common.compress.model.FileInfo;
-import com.yuxie.common.compress.strategy.UnzipStrategy;
+import com.yuxie.common.compress.util.CompressionCompositeInputStream;
 import org.apache.commons.compress.archivers.ArchiveInputStream;
 import org.apache.commons.compress.compressors.CompressorInputStream;
-import org.apache.commons.compress.compressors.CompressorStreamFactory;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
 
 import java.io.ByteArrayInputStream;
@@ -26,8 +26,13 @@ import java.util.Map;
  * 1. GZIP (.gz)
  * 2. BZIP2 (.bz2)
  * 3. XZ (.xz)
+ * <p>
+ * 支持复合格式：
+ * 1. TAR.GZ (.tar.gz)
+ * 2. TAR.BZ2 (.tar.bz2)
+ * 3. TAR.XZ (.tar.xz)
  */
-public class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy implements UnzipStrategy {
+public class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy {
     
     public CompressedFileUnzipStrategy(UnzipConfig unzipConfig) {
         super(unzipConfig);
@@ -61,15 +66,10 @@ public class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy
             throw new UnzipException("输入流不能为空");
         }
 
-        // 读取输入流数据
-        byte[] data;
-        try {
-            data = readInputStream(inputStream);
-        } catch (IOException e) {
-            throw new UnzipException("读取输入流失败", e);
-        }
-
-        try (CompressorInputStream compressorInputStream = createCompressorInputStream(new ByteArrayInputStream(data))) {
+        // 使用复合输入流管理资源
+        CompressionCompositeInputStream compositeInputStream = new CompressionCompositeInputStream(inputStream);
+        
+        try (CompressorInputStream compressorInputStream = createCompressorInputStream(compositeInputStream)) {
             // 读取解压后的数据
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             byte[] buffer = new byte[unzipConfig.getBufferSize()];
@@ -88,11 +88,22 @@ public class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy
 
                 // 更新进度
                 if (callback != null) {
-                    callback.onProgress("解压中", totalBytesRead, data.length, 1, 1);
+                    callback.onProgress("解压中", totalBytesRead, compositeInputStream.available(), 1, 1);
                 }
             }
 
-            // 创建文件信息
+            byte[] decompressedData = outputStream.toByteArray();
+            
+            // 检测内层格式
+            CompressionFormat innerFormat = CompressionFormatDetector.detectFormat(new ByteArrayInputStream(decompressedData));
+            
+            // 如果是TAR格式，使用TAR策略解压
+            if (innerFormat == CompressionFormat.TAR) {
+                TarUnzipStrategy tarStrategy = new TarUnzipStrategy(unzipConfig);
+                return tarStrategy.unzip(new ByteArrayInputStream(decompressedData), password, callback);
+            }
+            
+            // 如果不是TAR格式，返回当前解压结果
             FileInfo fileInfo = FileInfo.builder()
                 .fileName("decompressed")
                 .path("decompressed")
@@ -105,7 +116,7 @@ public class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy
                 callback.onComplete();
             }
 
-            return Collections.singletonMap(fileInfo, outputStream.toByteArray());
+            return Collections.singletonMap(fileInfo, decompressedData);
 
         } catch (Exception e) {
             if (callback != null) {
