@@ -11,7 +11,7 @@ import java.io.InputStream;
 /**
  * GZIP格式解压策略实现
  */
-public class GzipUnzipStrategy extends AbstractCompressedFileUnzipStrategy {
+public class GzipUnzipStrategy extends CompressedFileUnzipStrategy {
     
     public GzipUnzipStrategy(UnzipConfig unzipConfig) {
         super(unzipConfig);

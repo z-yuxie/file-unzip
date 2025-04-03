@@ -11,7 +11,7 @@ import java.io.InputStream;
 /**
  * LZ4格式解压策略实现
  */
-public class Lz4UnzipStrategy extends AbstractCompressedFileUnzipStrategy {
+public class Lz4UnzipStrategy extends CompressedFileUnzipStrategy {
     
     public Lz4UnzipStrategy(UnzipConfig unzipConfig) {
         super(unzipConfig);

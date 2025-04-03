@@ -11,7 +11,7 @@ import java.io.InputStream;
 /**
  * XZ格式解压策略实现
  */
-public class XzUnzipStrategy extends AbstractCompressedFileUnzipStrategy {
+public class XzUnzipStrategy extends CompressedFileUnzipStrategy {
     
     public XzUnzipStrategy(UnzipConfig unzipConfig) {
         super(unzipConfig);

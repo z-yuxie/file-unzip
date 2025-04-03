@@ -11,7 +11,7 @@ import java.io.InputStream;
 /**
  * BZIP2格式解压策略实现
  */
-public class Bzip2UnzipStrategy extends AbstractCompressedFileUnzipStrategy {
+public class Bzip2UnzipStrategy extends CompressedFileUnzipStrategy {
     
     public Bzip2UnzipStrategy(UnzipConfig unzipConfig) {
         super(unzipConfig);

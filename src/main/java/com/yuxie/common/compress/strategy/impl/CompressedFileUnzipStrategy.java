@@ -6,8 +6,6 @@ import com.yuxie.common.compress.exception.UnzipException;
 import com.yuxie.common.compress.format.CompressionFormat;
 import com.yuxie.common.compress.format.CompressionFormatDetector;
 import com.yuxie.common.compress.model.FileInfo;
-import com.yuxie.common.compress.util.CompressionCompositeInputStream;
-import lombok.Getter;
 import org.apache.commons.compress.archivers.ArchiveInputStream;
 import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
@@ -28,21 +26,9 @@ import java.util.Arrays;
 import java.util.function.Function;
 
 /**
- * 单文件压缩格式解压策略实现
- * 支持以下格式：
- * 1. GZIP (.gz)
- * 2. BZIP2 (.bz2)
- * 3. XZ (.xz)
- * 4. LZMA (.lzma)
- * 5. SNAPPY (.snappy)
- * 6. LZ4 (.lz4)
- * <p>
- * 支持复合格式：
- * 1. TAR.GZ (.tar.gz)
- * 2. TAR.BZ2 (.tar.bz2)
- * 3. TAR.XZ (.tar.xz)
+ * 单文件压缩格式解压策略的抽象基类
  */
-public class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy {
+public abstract class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy {
     
     /**
      * 支持的压缩格式及其对应的输入流创建函数
@@ -83,9 +69,8 @@ public class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy
                 throw new RuntimeException(e);
             }
         }),
-        LZ4(CompressionFormat.LZ4, BlockLZ4CompressorInputStream::new);
+        LZ4(CompressionFormat.LZ4, input -> new BlockLZ4CompressorInputStream(input));
         
-        @Getter
         private final CompressionFormat format;
         private final Function<InputStream, CompressorInputStream> factory;
         
@@ -93,7 +78,11 @@ public class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy
             this.format = format;
             this.factory = factory;
         }
-
+        
+        public CompressionFormat getFormat() {
+            return format;
+        }
+        
         public CompressorInputStream createInputStream(InputStream inputStream) {
             return factory.apply(inputStream);
         }
@@ -110,24 +99,12 @@ public class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy
     
     private final Map<CompressionFormat, SupportedFormat> formatMap;
     
-    public CompressedFileUnzipStrategy(UnzipConfig unzipConfig) {
+    protected CompressedFileUnzipStrategy(UnzipConfig unzipConfig) {
         super(unzipConfig);
         this.formatMap = new EnumMap<>(CompressionFormat.class);
         for (SupportedFormat format : SupportedFormat.values()) {
             formatMap.put(format.getFormat(), format);
         }
-    }
-    
-    @Override
-    protected boolean isSupportedFormat(CompressionFormat format) {
-        return formatMap.containsKey(format);
-    }
-    
-    @Override
-    public CompressionFormat[] getSupportedFormats() {
-        return Arrays.stream(SupportedFormat.values())
-            .map(SupportedFormat::getFormat)
-            .toArray(CompressionFormat[]::new);
     }
     
     @Override
@@ -144,7 +121,7 @@ public class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy
         
         try {
             // 创建解压输入流
-            CompressorInputStream compressorInputStream = createCompressorInputStream(inputStream, CompressionFormat.GZIP);
+            CompressorInputStream compressorInputStream = createCompressorInputStream(inputStream);
             
             // 读取解压后的数据
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -208,17 +185,10 @@ public class CompressedFileUnzipStrategy extends AbstractCommonsCompressStrategy
      * 创建压缩输入流
      *
      * @param inputStream 输入流
-     * @param format 压缩格式
      * @return 压缩输入流
      * @throws IOException 创建输入流失败时抛出
      */
-    private CompressorInputStream createCompressorInputStream(InputStream inputStream, CompressionFormat format) throws IOException {
-        SupportedFormat supportedFormat = formatMap.get(format);
-        if (supportedFormat == null) {
-            throw new IllegalArgumentException("不支持的压缩格式: " + format);
-        }
-        return supportedFormat.createInputStream(inputStream);
-    }
+    protected abstract CompressorInputStream createCompressorInputStream(InputStream inputStream) throws IOException;
     
     @Override
     public void close() throws IOException {

@@ -11,7 +11,7 @@ import java.io.InputStream;
 /**
  * LZMA格式解压策略实现
  */
-public class LzmaUnzipStrategy extends AbstractCompressedFileUnzipStrategy {
+public class LzmaUnzipStrategy extends CompressedFileUnzipStrategy {
     
     public LzmaUnzipStrategy(UnzipConfig unzipConfig) {
         super(unzipConfig);

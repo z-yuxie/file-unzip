@@ -11,7 +11,7 @@ import java.io.InputStream;
 /**
  * SNAPPY格式解压策略实现
  */
-public class SnappyUnzipStrategy extends AbstractCompressedFileUnzipStrategy {
+public class SnappyUnzipStrategy extends CompressedFileUnzipStrategy {
     
     public SnappyUnzipStrategy(UnzipConfig unzipConfig) {
         super(unzipConfig);

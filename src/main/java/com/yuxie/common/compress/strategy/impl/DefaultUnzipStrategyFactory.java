@@ -44,9 +44,6 @@ public class DefaultUnzipStrategyFactory implements UnzipStrategyFactory {
         strategyMap.put(CompressionFormat.LZMA, new LzmaUnzipStrategy(unzipConfig));
         strategyMap.put(CompressionFormat.SNAPPY, new SnappyUnzipStrategy(unzipConfig));
         strategyMap.put(CompressionFormat.LZ4, new Lz4UnzipStrategy(unzipConfig));
-        
-        // 注册复合格式策略
-        strategyMap.put(CompressionFormat.COMPOUND, new CompoundArchiveUnzipStrategy(unzipConfig));
     }
     
     @Override
