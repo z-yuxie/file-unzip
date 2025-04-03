@@ -6,13 +6,16 @@ import com.yuxie.common.compress.exception.UnzipErrorCode;
 import com.yuxie.common.compress.exception.UnzipException;
 import com.yuxie.common.compress.format.CompressionFormat;
 import com.yuxie.common.compress.format.CompressionFormatDetector;
-import com.yuxie.common.compress.format.DecompressorFactory;
+import com.yuxie.common.compress.format.CompressionDecompressorFactory;
 import com.yuxie.common.compress.model.FileInfo;
 import com.yuxie.common.compress.monitor.UnzipMetrics;
 import com.yuxie.common.compress.strategy.UnzipStrategy;
 import com.yuxie.common.compress.strategy.UnzipStrategyFactory;
 import com.yuxie.common.compress.strategy.impl.DefaultUnzipStrategyFactory;
+import com.yuxie.common.compress.util.UnzipUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tika.Tika;
+import org.apache.tika.mime.MediaType;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -37,16 +40,18 @@ import java.util.Map;
  * 11. LZMA (.lzma)
  */
 @Slf4j
-public class UnzipService {
+public class UnzipService implements AutoCloseable {
 
     private final UnzipStrategyFactory strategyFactory;
     private final UnzipConfig unzipConfig;
     private final UnzipMetrics metrics;
+    private final Tika tika;
 
     public UnzipService(UnzipConfig unzipConfig, UnzipMetrics metrics) {
         this.strategyFactory = new DefaultUnzipStrategyFactory(unzipConfig);
         this.unzipConfig = unzipConfig;
         this.metrics = metrics;
+        this.tika = new Tika();
     }
 
     public UnzipService(UnzipStrategyFactory strategyFactory,
@@ -55,6 +60,7 @@ public class UnzipService {
         this.strategyFactory = strategyFactory;
         this.unzipConfig = unzipConfig;
         this.metrics = metrics;
+        this.tika = new Tika();
     }
 
     /**
@@ -144,7 +150,7 @@ public class UnzipService {
                 || format == CompressionFormat.RAR) {
             return new ByteArrayInputStream(data);
         }
-        return DecompressorFactory.createDecompressor(data, format);
+        return CompressionDecompressorFactory.createDecompressor(data, format);
     }
 
     private void recordMetrics(long startTime, long dataSize, int fileCount) {
@@ -203,7 +209,7 @@ public class UnzipService {
         }
 
         // 检测压缩格式
-        CompressionFormat format = CompressionFormatDetector.detect(data);
+        CompressionFormat format = detectFormat(inputStream);
         if (format == null) {
             throw new UnzipException(UnzipErrorCode.INVALID_FORMAT, "无法识别的压缩格式");
         }
@@ -282,5 +288,76 @@ public class UnzipService {
         } catch (IOException e) {
             throw new UnzipException(UnzipErrorCode.IO_ERROR, "写入文件失败: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 检查是否为复合格式
+     */
+    private boolean isCompoundFormat(InputStream inputStream) throws IOException {
+        // 读取前几个字节
+        byte[] header = new byte[4];
+        int bytesRead = inputStream.read(header);
+        if (bytesRead < 4) {
+            return false;
+        }
+        
+        // 检查是否为tar格式
+        // tar格式的头部通常以"ustar"或"ustar  "结尾
+        if (header[0] == 'u' && header[1] == 's' && header[2] == 't' && header[3] == 'a') {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * 检测压缩格式
+     */
+    private CompressionFormat detectFormat(InputStream inputStream) throws UnzipException {
+        try {
+            // 使用Tika检测MIME类型
+            MediaType mediaType = MediaType.parse(tika.detect(inputStream));
+            String mimeType = mediaType.getBaseType().toString();
+            
+            // 根据MIME类型判断压缩格式
+            switch (mimeType) {
+                case "application/zip":
+                    return CompressionFormat.ZIP;
+                case "application/x-tar":
+                    return CompressionFormat.TAR;
+                case "application/gzip":
+                case "application/x-gzip":
+                    // 检查是否为复合格式
+                    if (isCompoundFormat(inputStream)) {
+                        return CompressionFormat.TAR_GZ;
+                    }
+                    return CompressionFormat.GZIP;
+                case "application/x-bzip2":
+                    // 检查是否为复合格式
+                    if (isCompoundFormat(inputStream)) {
+                        return CompressionFormat.TAR_BZ2;
+                    }
+                    return CompressionFormat.BZIP2;
+                case "application/x-xz":
+                    // 检查是否为复合格式
+                    if (isCompoundFormat(inputStream)) {
+                        return CompressionFormat.TAR_XZ;
+                    }
+                    return CompressionFormat.XZ;
+                case "application/x-rar-compressed":
+                    return CompressionFormat.RAR;
+                case "application/x-7z-compressed":
+                    return CompressionFormat.SEVEN_ZIP;
+                default:
+                    return CompressionFormat.UNKNOWN;
+            }
+        } catch (IOException e) {
+            throw new UnzipException(UnzipErrorCode.IO_ERROR, "检测压缩格式失败", e);
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        // 不需要额外清理资源
     }
 } 
